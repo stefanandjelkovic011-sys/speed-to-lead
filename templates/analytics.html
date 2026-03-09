@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Analytics — {{ business.name }}{% endblock %}
+{% block content %}
+<h1>Revenue & Analytics</h1>
+
+<!-- Overview Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">${{ "%.2f"|format(job_stats.total_revenue) }}</div>
+        <div class="label">Total Revenue</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--warning);">${{ "%.2f"|format(job_stats.total_costs) }}</div>
+        <div class="label">Job Costs</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--danger);">${{ "%.2f"|format(total_expenses) }}</div>
+        <div class="label">Overhead Expenses</div>
+    </div>
+    <div class="stat-card">
+        {% set net = job_stats.total_profit - total_expenses %}
+        <div class="value" style="color:{% if net >= 0 %}var(--success){% else %}var(--danger){% endif %};">${{ "%.2f"|format(net) }}</div>
+        <div class="label">Net Profit</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ job_stats.COMPLETED }}</div>
+        <div class="label">Jobs Completed</div>
+    </div>
+    <div class="stat-card">
+        {% set avg_job = (job_stats.total_revenue / job_stats.COMPLETED) if job_stats.COMPLETED > 0 else 0 %}
+        <div class="value" style="color:var(--info);">${{ "%.2f"|format(avg_job) }}</div>
+        <div class="label">Avg Job Value</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <!-- Monthly Revenue -->
+    <div class="card">
+        <h2>Monthly Revenue (Last 12 Months)</h2>
+        {% if monthly %}
+        <table>
+            <thead><tr><th>Month</th><th>Jobs</th><th>Revenue</th><th>Costs</th><th>Profit</th></tr></thead>
+            <tbody>
+                {% for m in monthly %}
+                <tr>
+                    <td>{{ m.month }}</td>
+                    <td>{{ m.job_count }}</td>
+                    <td style="color:var(--success);">${{ "%.2f"|format(m.revenue) }}</td>
+                    <td style="color:var(--warning);">${{ "%.2f"|format(m.costs) }}</td>
+                    <td style="color:{% if m.revenue - m.costs >= 0 %}var(--success){% else %}var(--danger){% endif %};">${{ "%.2f"|format(m.revenue - m.costs) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><p>No completed jobs yet.</p></div>
+        {% endif %}
+    </div>
+
+    <!-- Revenue by Service -->
+    <div class="card">
+        <h2>Revenue by Service Type</h2>
+        {% if by_service %}
+        <table>
+            <thead><tr><th>Service</th><th>Jobs</th><th>Revenue</th><th>Avg Price</th><th>Profit</th></tr></thead>
+            <tbody>
+                {% for s in by_service %}
+                <tr>
+                    <td>{{ s.service_type }}</td>
+                    <td>{{ s.job_count }}</td>
+                    <td style="color:var(--success);">${{ "%.2f"|format(s.revenue) }}</td>
+                    <td>${{ "%.2f"|format(s.avg_price) }}</td>
+                    <td style="color:{% if s.revenue - s.costs >= 0 %}var(--success){% else %}var(--danger){% endif %};">${{ "%.2f"|format(s.revenue - s.costs) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><p>No completed jobs yet.</p></div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Cleaner Performance -->
+<div class="card">
+    <h2>Cleaner Performance</h2>
+    {% if cleaner_stats %}
+    <table>
+        <thead><tr><th>Cleaner</th><th>Rate</th><th>Jobs</th><th>Hours</th><th>Revenue Generated</th><th>Revenue/Hour</th></tr></thead>
+        <tbody>
+            {% for cs in cleaner_stats %}
+            <tr>
+                <td>{{ cs.name }}</td>
+                <td>${{ "%.2f"|format(cs.hourly_rate) }}/hr</td>
+                <td>{{ cs.job_count }}</td>
+                <td>{{ "%.1f"|format(cs.total_hours) }}h</td>
+                <td style="color:var(--success);">${{ "%.2f"|format(cs.revenue) }}</td>
+                <td>{% if cs.total_hours > 0 %}${{ "%.2f"|format(cs.revenue / cs.total_hours) }}/hr{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No cleaner data yet.</p></div>
+    {% endif %}
+</div>
+
+<!-- Expenses -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div class="card">
+        <div class="card-header">
+            <h2>Expenses by Category</h2>
+        </div>
+        {% if expense_summary %}
+        <table>
+            <thead><tr><th>Category</th><th>Total</th></tr></thead>
+            <tbody>
+                {% for e in expense_summary %}
+                <tr><td>{{ e.category }}</td><td style="color:var(--danger);">${{ "%.2f"|format(e.total) }}</td></tr>
+                {% endfor %}
+                <tr style="font-weight:700;border-top:2px solid var(--border);"><td>Total</td><td style="color:var(--danger);">${{ "%.2f"|format(total_expenses) }}</td></tr>
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><p>No expenses tracked yet.</p></div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Add Expense</h2>
+        </div>
+        <div class="form-group">
+            <label>Category</label>
+            <select id="expCategory">
+                <option value="Supplies">Supplies</option>
+                <option value="Gas/Mileage">Gas/Mileage</option>
+                <option value="Equipment">Equipment</option>
+                <option value="Insurance">Insurance</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Software">Software</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Amount ($)</label><input type="number" id="expAmount" step="0.01" min="0"></div>
+            <div class="form-group"><label>Date</label><input type="date" id="expDate"></div>
+        </div>
+        <div class="form-group"><label>Description</label><input type="text" id="expDesc" placeholder="e.g. Costco cleaning supplies"></div>
+        <button class="btn btn-primary btn-block" onclick="addExpense()">Add Expense</button>
+
+        {% if expenses %}
+        <div style="margin-top:15px;max-height:300px;overflow-y:auto;">
+            <table>
+                <thead><tr><th>Date</th><th>Category</th><th>Amount</th><th></th></tr></thead>
+                <tbody>
+                    {% for e in expenses %}
+                    <tr>
+                        <td style="font-size:12px;">{{ e.expense_date }}</td>
+                        <td>{{ e.category }}</td>
+                        <td>${{ "%.2f"|format(e.amount) }}</td>
+                        <td><button class="btn btn-sm btn-danger" onclick="deleteExpense({{ e.id }})">X</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const businessId = {{ business.id }};
+
+async function addExpense() {
+    const data = {
+        category: document.getElementById('expCategory').value,
+        amount: document.getElementById('expAmount').value,
+        description: document.getElementById('expDesc').value,
+        expense_date: document.getElementById('expDate').value || null,
+    };
+    if (!data.amount || parseFloat(data.amount) <= 0) { alert('Enter a valid amount'); return; }
+    const res = await apiCall(`/api/expenses/${businessId}`, 'POST', data);
+    if (res.success) location.reload();
+}
+
+async function deleteExpense(id) {
+    if (!confirm('Delete this expense?')) return;
+    const res = await apiCall(`/api/expenses/${id}/delete`, 'POST', {});
+    if (res.success) location.reload();
+}
+</script>
+{% endblock %}

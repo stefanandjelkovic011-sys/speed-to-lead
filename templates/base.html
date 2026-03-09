@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Speed-to-Lead{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="logo">Speed-to-Lead</div>
+        <nav>
+            <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a>
+            {% if business is defined and business %}
+            <a href="{{ url_for('dashboard', business_id=business.id) }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('jobs_page', business_id=business.id) }}" class="{% if request.endpoint == 'jobs_page' %}active{% endif %}">Jobs</a>
+            <a href="{{ url_for('schedule_page', business_id=business.id) }}" class="{% if request.endpoint == 'schedule_page' %}active{% endif %}">Schedule</a>
+            <a href="{{ url_for('customers_page', business_id=business.id) }}" class="{% if request.endpoint == 'customers_page' %}active{% endif %}">Customers</a>
+            <a href="{{ url_for('pricing_page', business_id=business.id) }}" class="{% if request.endpoint == 'pricing_page' %}active{% endif %}">Pricing</a>
+            <a href="{{ url_for('analytics_page', business_id=business.id) }}" class="{% if request.endpoint == 'analytics_page' %}active{% endif %}">Analytics</a>
+            <a href="{{ url_for('outreach_page', business_id=business.id) }}" class="{% if request.endpoint == 'outreach_page' %}active{% endif %}">Outreach</a>
+            <a href="{{ url_for('business_edit', business_id=business.id) }}" class="{% if request.endpoint == 'business_edit' %}active{% endif %}">Settings</a>
+            <a href="{{ url_for('knowledge_base', business_id=business.id) }}" class="{% if request.endpoint == 'knowledge_base' %}active{% endif %}">Knowledge Base</a>
+            <a href="{{ url_for('testing_platform', business_id=business.id) }}" class="{% if request.endpoint == 'testing_platform' %}active{% endif %}">Testing</a>
+            {% endif %}
+        </nav>
+    </aside>
+    <main class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+<div class="loading-overlay" id="loadingOverlay">
+    <div style="text-align:center;color:white;">
+        <div class="loading" style="width:40px;height:40px;margin:0 auto 15px;"></div>
+        <div id="loadingText">Processing with Claude CLI...</div>
+    </div>
+</div>
+<script>
+function showLoading(text) {
+    document.getElementById('loadingText').textContent = text || 'Processing with Claude CLI...';
+    document.getElementById('loadingOverlay').classList.add('active');
+}
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('active');
+}
+async function apiCall(url, method, body) {
+    const opts = { method, headers: {'Content-Type': 'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    return res.json();
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ business.name }} — Speed-to-Lead{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1>{{ business.name }} — Dashboard</h1>
+    <div>
+        <a href="{{ url_for('knowledge_base', business_id=business.id) }}" class="btn btn-outline">Knowledge Base</a>
+        <a href="{{ url_for('testing_platform', business_id=business.id) }}" class="btn btn-outline">Testing</a>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ stats.total }}</div>
+        <div class="label">Total Leads</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--primary);">{{ stats.NEW }}</div>
+        <div class="label">New</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--info);">{{ stats.IN_PROGRESS }}</div>
+        <div class="label">In Progress</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">{{ stats.BOOKED }}</div>
+        <div class="label">Booked</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--warning);">{{ stats.UNBOOKED }}</div>
+        <div class="label">Unbooked</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--text-dim);">{{ stats.NON_LEAD }}</div>
+        <div class="label">Non-Lead</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">{{ stats.booking_rate }}%</div>
+        <div class="label">Booking Rate</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--info);">{% if avg_response_seconds is not none %}{% if avg_response_seconds >= 60 %}{{ (avg_response_seconds / 60)|round(1) }}m{% else %}{{ avg_response_seconds }}s{% endif %}{% else %}-{% endif %}</div>
+        <div class="label">Avg Response Time</div>
+    </div>
+</div>
+
+<!-- Gap 5: Health status banner -->
+<div id="healthBanner" style="display:none;background:#d97706;color:white;padding:10px 15px;border-radius:8px;margin-bottom:15px;font-size:14px;">
+    &#9888; Claude CLI is currently unavailable. New leads will be queued for CSR review.
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Leads</h2>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <select id="filterStatus" onchange="filterLeads()" style="width:auto;">
+                <option value="">All Statuses</option>
+                <option value="NEW">New</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="BOOKED">Booked</option>
+                <option value="UNBOOKED">Unbooked</option>
+                <option value="NON_LEAD">Non-Lead</option>
+            </select>
+            <select id="filterPlatform" onchange="filterLeads()" style="width:auto;">
+                <option value="">All Platforms</option>
+                <option value="google_lsa">Google LSA</option>
+                <option value="yelp">Yelp</option>
+                <option value="thumbtack">Thumbtack</option>
+                <option value="angi">Angi</option>
+                <option value="chat_widget">Chat Widget</option>
+                <option value="contact_form">Contact Form</option>
+                <option value="duke_energy">Duke Energy</option>
+                <option value="test_simulation">Test</option>
+            </select>
+            <input type="text" id="filterName" placeholder="Search name..." onkeyup="filterLeadsLocal()" style="width:180px;">
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Platform</th>
+                <th>Customer</th>
+                <th>Service</th>
+                <th>Last Message</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody id="leadsTable">
+            {% for lead in leads %}
+            <tr onclick="window.location='{{ url_for('lead_detail', lead_id=lead.id) }}'" style="cursor:pointer;" data-name="{{ lead.customer_name or '' }}">
+                <td><span class="badge badge-{{ lead.status|lower|replace('_','-') }}">{{ lead.status }}</span></td>
+                <td><span class="badge badge-platform">{{ lead.platform }}</span></td>
+                <td>{{ lead.customer_name or 'Unknown' }}</td>
+                <td>{{ lead.service_type or '-' }}</td>
+                <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ lead.last_message or '-' }}</td>
+                <td>{{ lead.updated_at[:16] if lead.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not leads %}
+    <div class="empty-state" style="padding:30px;">
+        <p>No leads yet. Use the Testing platform to simulate leads, or connect a platform.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const businessId = {{ business.id }};
+
+async function filterLeads() {
+    const status = document.getElementById('filterStatus').value;
+    const platform = document.getElementById('filterPlatform').value;
+    let url = `/api/leads/${businessId}?`;
+    if (status) url += `status=${status}&`;
+    if (platform) url += `platform=${platform}&`;
+    try {
+        const res = await fetch(url);
+        const leads = await res.json();
+        renderLeads(leads);
+    } catch(e) { console.error(e); }
+}
+
+function filterLeadsLocal() {
+    const search = document.getElementById('filterName').value.toLowerCase();
+    document.querySelectorAll('#leadsTable tr').forEach(row => {
+        const name = (row.dataset.name || '').toLowerCase();
+        row.style.display = name.includes(search) ? '' : 'none';
+    });
+}
+
+function renderLeads(leads) {
+    const tbody = document.getElementById('leadsTable');
+    if (!leads.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No leads match filters</td></tr>';
+        return;
+    }
+    tbody.innerHTML = leads.map(l => `
+        <tr onclick="window.location='/lead/${l.id}'" style="cursor:pointer;" data-name="${l.customer_name || ''}">
+            <td><span class="badge badge-${(l.status||'').toLowerCase().replace('_','-')}">${l.status}</span></td>
+            <td><span class="badge badge-platform">${l.platform}</span></td>
+            <td>${l.customer_name || 'Unknown'}</td>
+            <td>${l.service_type || '-'}</td>
+            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.last_message || '-'}</td>
+            <td>${(l.updated_at || '').substring(0, 16)}</td>
+        </tr>
+    `).join('');
+}
+
+// Auto-refresh every 30s
+setInterval(filterLeads, 30000);
+
+// Gap 5: Health status check on load
+fetch('/api/test/health').then(r => r.json()).then(data => {
+    if (!data.claude_cli_available) {
+        document.getElementById('healthBanner').style.display = 'block';
+    }
+}).catch(() => {
+    document.getElementById('healthBanner').style.display = 'block';
+});
+</script>
+{% endblock %}

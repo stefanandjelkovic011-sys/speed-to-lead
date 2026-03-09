@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Speed-to-Lead — Home{% endblock %}
+{% block content %}
+<h1>Speed-to-Lead</h1>
+<p style="color:var(--text-dim);margin-bottom:25px;">Multi-platform lead management with AI chat agent (Claude CLI subprocess bridge — no API credits)</p>
+
+<div style="margin-bottom:20px;">
+    <a href="{{ url_for('business_new') }}" class="btn btn-primary">+ Add Business</a>
+    <button class="btn btn-outline" onclick="checkHealth()" style="margin-left:10px;">Check Claude CLI Health</button>
+    <span id="healthStatus" style="margin-left:10px;font-size:13px;"></span>
+</div>
+
+{% if businesses %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Business Name</th>
+                <th>Org ID</th>
+                <th>Platforms</th>
+                <th>AI Chatbot</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in businesses %}
+            <tr>
+                <td><strong>{{ b.name }}</strong></td>
+                <td><code>{{ b.org_id }}</code></td>
+                <td>
+                    {% if b.google_lsa_customer_id %}<span class="badge badge-platform">Google LSA</span> {% endif %}
+                    {% if b.yelp_business_id %}<span class="badge badge-platform">Yelp</span> {% endif %}
+                    {% if b.thumbtack_pro_id %}<span class="badge badge-platform">Thumbtack</span> {% endif %}
+                    {% if b.angi_provider_id %}<span class="badge badge-platform">Angi</span> {% endif %}
+                    {% if b.chat_widget_enabled %}<span class="badge badge-platform">Chat Widget</span> {% endif %}
+                    {% if b.contact_form_enabled %}<span class="badge badge-platform">Contact Form</span> {% endif %}
+                </td>
+                <td>
+                    {% if b.ai_chatbot_enabled %}
+                    <span style="color:var(--success);">Enabled</span>
+                    {% else %}
+                    <span style="color:var(--text-dim);">Disabled</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('dashboard', business_id=b.id) }}" class="btn btn-sm btn-primary">Dashboard</a>
+                    <a href="{{ url_for('testing_platform', business_id=b.id) }}" class="btn btn-sm btn-outline">Test</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card empty-state">
+    <div class="icon">&#9889;</div>
+    <h2>No businesses configured</h2>
+    <p style="margin:10px 0;">Add a business to start managing leads with AI.</p>
+    <a href="{{ url_for('business_new') }}" class="btn btn-primary">+ Add Business</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function checkHealth() {
+    const el = document.getElementById('healthStatus');
+    el.textContent = 'Checking...';
+    el.style.color = 'var(--text-dim)';
+    try {
+        const res = await fetch('/api/test/health');
+        const data = await res.json();
+        if (data.claude_cli_available) {
+            el.textContent = 'Claude CLI is healthy';
+            el.style.color = 'var(--success)';
+        } else {
+            el.textContent = 'Claude CLI not responding';
+            el.style.color = 'var(--danger)';
+        }
+    } catch(e) {
+        el.textContent = 'Error checking health';
+        el.style.color = 'var(--danger)';
+    }
+}
+</script>
+{% endblock %}

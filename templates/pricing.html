@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Pricing Calculator — {{ business.name }}{% endblock %}
+{% block content %}
+<h1>Pricing Calculator</h1>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div class="card">
+        <h2>Calculate Quote</h2>
+        <div class="form-group">
+            <label>Service Type</label>
+            <select id="serviceType">
+                {% for key, svc in service_types.items() %}
+                <option value="{{ key }}">{{ svc.label }} — {{ svc.description }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Bedrooms</label>
+                <input type="number" id="bedrooms" value="3" min="0" max="10">
+            </div>
+            <div class="form-group">
+                <label>Bathrooms</label>
+                <input type="number" id="bathrooms" value="2" min="0" max="10" step="0.5">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Condition</label>
+                <select id="condition">
+                    {% for key, cond in conditions.items() %}
+                    <option value="{{ key }}" {% if key == 'average' %}selected{% endif %}>{{ cond.label }} ({{ cond.multiplier }}x)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sq Ft (optional)</label>
+                <input type="number" id="sqft" placeholder="e.g. 1800" min="0" max="20000">
+            </div>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="calculatePrice()">Calculate Price</button>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none;">
+        <h2>Quote Breakdown</h2>
+        <div id="quoteResult"></div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+    <h2>Price Reference Table</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>Base</th>
+                <th>/Bedroom</th>
+                <th>/Bathroom</th>
+                <th>Est. Hours (base)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key, svc in service_types.items() %}
+            <tr>
+                <td><strong>{{ svc.label }}</strong><br><small style="color:var(--text-dim);">{{ svc.description }}</small></td>
+                <td>${{ svc.base }}</td>
+                <td>+${{ svc.per_bedroom }}</td>
+                <td>+${{ svc.per_bathroom }}</td>
+                <td>{{ svc.estimated_hours_base }}h</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function calculatePrice() {
+    const data = {
+        service_type: document.getElementById('serviceType').value,
+        bedrooms: document.getElementById('bedrooms').value,
+        bathrooms: document.getElementById('bathrooms').value,
+        condition: document.getElementById('condition').value,
+        sqft: document.getElementById('sqft').value || null,
+    };
+    try {
+        const res = await apiCall('/api/pricing/calculate', 'POST', data);
+        document.getElementById('resultCard').style.display = 'block';
+        const b = res.breakdown;
+        document.getElementById('quoteResult').innerHTML = `
+            <div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-bottom:15px;">
+                <div class="stat-card">
+                    <div class="value" style="color:var(--success);font-size:36px;">$${res.price.toFixed(2)}</div>
+                    <div class="label">Quoted Price</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" style="color:var(--info);">${res.estimated_hours}h</div>
+                    <div class="label">Estimated Time</div>
+                </div>
+            </div>
+            <table>
+                <tr><td>Base price</td><td style="text-align:right;">$${b.base.toFixed(2)}</td></tr>
+                <tr><td>${res.bedrooms} bedroom(s)</td><td style="text-align:right;">+$${b.bedroom_cost.toFixed(2)}</td></tr>
+                <tr><td>${res.bathrooms} bathroom(s)</td><td style="text-align:right;">+$${b.bathroom_cost.toFixed(2)}</td></tr>
+                <tr><td>Subtotal</td><td style="text-align:right;">$${b.subtotal.toFixed(2)}</td></tr>
+                <tr><td>Condition: ${res.condition_label}</td><td style="text-align:right;">&times;${b.condition_multiplier}</td></tr>
+                ${b.sqft_surcharge > 0 ? `<tr><td>Sq ft surcharge</td><td style="text-align:right;">+$${b.sqft_surcharge.toFixed(2)}</td></tr>` : ''}
+                <tr style="border-top:2px solid var(--border);font-weight:700;"><td>Total</td><td style="text-align:right;">$${res.price.toFixed(2)}</td></tr>
+            </table>
+            <div style="margin-top:15px;padding:12px;background:var(--bg);border-radius:8px;">
+                <h3 style="margin-bottom:8px;">Profitability</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
+                    <div>Labor: <strong>$${res.costs.labor.toFixed(2)}</strong></div>
+                    <div>Supplies: <strong>$${res.costs.supplies.toFixed(2)}</strong></div>
+                    <div>Profit: <strong style="color:${res.costs.profit >= 0 ? 'var(--success)' : 'var(--danger)'};">$${res.costs.profit.toFixed(2)} (${res.costs.margin_pct}%)</strong></div>
+                </div>
+            </div>
+        `;
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+// Calculate on load
+calculatePrice();
+</script>
+{% endblock %}

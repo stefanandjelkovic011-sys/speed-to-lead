@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Jobs — {{ business.name }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1>Jobs</h1>
+    <button class="btn btn-primary" onclick="document.getElementById('newJobModal').style.display='flex'">+ New Job</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ job_stats.total }}</div>
+        <div class="label">Total Jobs</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--info);">{{ job_stats.SCHEDULED }}</div>
+        <div class="label">Scheduled</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--warning);">{{ job_stats.IN_PROGRESS }}</div>
+        <div class="label">In Progress</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">{{ job_stats.COMPLETED }}</div>
+        <div class="label">Completed</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">${{ "%.2f"|format(job_stats.total_revenue) }}</div>
+        <div class="label">Revenue</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:{% if job_stats.total_profit >= 0 %}var(--success){% else %}var(--danger){% endif %};">${{ "%.2f"|format(job_stats.total_profit) }}</div>
+        <div class="label">Profit</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Job List</h2>
+        <div style="display:flex;gap:10px;">
+            <select id="filterStatus" onchange="filterJobs()" style="width:auto;">
+                <option value="">All</option>
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+            </select>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Service</th>
+                <th>Customer</th>
+                <th>Cleaner</th>
+                <th>Date</th>
+                <th>Price</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="jobsTable">
+            {% for job in jobs %}
+            <tr id="job-{{ job.id }}">
+                <td><span class="badge badge-{{ job.status|lower|replace('_','-') }}">{{ job.status }}</span></td>
+                <td>{{ service_types[job.service_type].label if job.service_type in service_types else job.service_type }}<br>
+                    <small style="color:var(--text-dim);">{{ job.bedrooms }}bd/{{ job.bathrooms }}ba</small></td>
+                <td>{% for c in customers if c.id == job.customer_id %}{{ c.name }}{% endfor %}</td>
+                <td>{% for cl in cleaners if cl.id == job.cleaner_id %}{{ cl.name }}{% endfor %}</td>
+                <td>{{ job.scheduled_date or '-' }}<br><small style="color:var(--text-dim);">{{ job.scheduled_time or '' }}</small></td>
+                <td>${{ "%.2f"|format(job.quoted_price) }}</td>
+                <td>
+                    {% if job.status == 'SCHEDULED' %}
+                    <button class="btn btn-sm btn-warning" onclick="updateJobStatus({{ job.id }},'IN_PROGRESS')">Start</button>
+                    {% elif job.status == 'IN_PROGRESS' %}
+                    <button class="btn btn-sm btn-success" onclick="completeJob({{ job.id }})">Complete</button>
+                    {% endif %}
+                    {% if job.status != 'COMPLETED' %}
+                    <button class="btn btn-sm btn-danger" onclick="updateJobStatus({{ job.id }},'CANCELLED')">Cancel</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not jobs %}
+    <div class="empty-state"><p>No jobs yet. Create your first job to get started.</p></div>
+    {% endif %}
+</div>
+
+<!-- Cleaners Section -->
+<div class="card">
+    <div class="card-header">
+        <h2>Cleaners</h2>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('newCleanerModal').style.display='flex'">+ Add Cleaner</button>
+    </div>
+    <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Rate</th><th>Status</th></tr></thead>
+        <tbody>
+            {% for cl in cleaners %}
+            <tr>
+                <td>{{ cl.name }}</td>
+                <td>{{ cl.phone or '-' }}</td>
+                <td>${{ "%.2f"|format(cl.hourly_rate) }}/hr</td>
+                <td><span class="badge {% if cl.is_active %}badge-booked{% else %}badge-non-lead{% endif %}">{{ 'Active' if cl.is_active else 'Inactive' }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not cleaners %}
+    <div class="empty-state"><p>No cleaners added yet.</p></div>
+    {% endif %}
+</div>
+
+<!-- New Job Modal -->
+<div id="newJobModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+    <div class="card" style="width:550px;max-height:90vh;overflow-y:auto;">
+        <h2>New Job</h2>
+        <div class="form-group">
+            <label>Service Type</label>
+            <select id="jobServiceType">
+                {% for key, svc in service_types.items() %}
+                <option value="{{ key }}">{{ svc.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Bedrooms</label><input type="number" id="jobBedrooms" value="3" min="0"></div>
+            <div class="form-group"><label>Bathrooms</label><input type="number" id="jobBathrooms" value="2" min="0" step="0.5"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Condition</label>
+                <select id="jobCondition">
+                    {% for key, cond in conditions.items() %}
+                    <option value="{{ key }}" {% if key == 'average' %}selected{% endif %}>{{ cond.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group"><label>Sq Ft</label><input type="number" id="jobSqft" placeholder="optional"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Customer</label>
+                <select id="jobCustomer">
+                    <option value="">— Select —</option>
+                    {% for c in customers %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Assign Cleaner</label>
+                <select id="jobCleaner">
+                    <option value="">— Unassigned —</option>
+                    {% for cl in cleaners %}
+                    <option value="{{ cl.id }}">{{ cl.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Date</label><input type="date" id="jobDate"></div>
+            <div class="form-group"><label>Time</label><input type="time" id="jobTime"></div>
+        </div>
+        <div class="form-group"><label>Address</label><input type="text" id="jobAddress" placeholder="123 Main St, Kennewick, WA"></div>
+        <div class="form-group"><label>Notes</label><textarea id="jobNotes" rows="2"></textarea></div>
+        <div id="jobPricePreview" style="padding:10px;background:var(--bg);border-radius:6px;margin-bottom:12px;font-size:14px;"></div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary" onclick="createJob()" style="flex:1;">Create Job</button>
+            <button class="btn btn-outline" onclick="document.getElementById('newJobModal').style.display='none'">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Cleaner Modal -->
+<div id="newCleanerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+    <div class="card" style="width:400px;">
+        <h2>Add Cleaner</h2>
+        <div class="form-group"><label>Name</label><input type="text" id="cleanerName"></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="cleanerPhone"></div>
+        <div class="form-group"><label>Hourly Rate ($)</label><input type="number" id="cleanerRate" value="18" step="0.50"></div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary" onclick="createCleaner()" style="flex:1;">Add Cleaner</button>
+            <button class="btn btn-outline" onclick="document.getElementById('newCleanerModal').style.display='none'">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const businessId = {{ business.id }};
+
+// Live price preview in new job modal
+['jobServiceType','jobBedrooms','jobBathrooms','jobCondition','jobSqft'].forEach(id => {
+    document.getElementById(id).addEventListener('change', previewPrice);
+    document.getElementById(id).addEventListener('input', previewPrice);
+});
+
+async function previewPrice() {
+    try {
+        const res = await apiCall('/api/pricing/calculate', 'POST', {
+            service_type: document.getElementById('jobServiceType').value,
+            bedrooms: document.getElementById('jobBedrooms').value,
+            bathrooms: document.getElementById('jobBathrooms').value,
+            condition: document.getElementById('jobCondition').value,
+            sqft: document.getElementById('jobSqft').value || null,
+        });
+        document.getElementById('jobPricePreview').innerHTML =
+            `<strong>Price: $${res.price.toFixed(2)}</strong> &mdash; ${res.estimated_hours}h est. &mdash; Profit: $${res.costs.profit.toFixed(2)} (${res.costs.margin_pct}%)`;
+    } catch(e) {}
+}
+previewPrice();
+
+async function createJob() {
+    const data = {
+        service_type: document.getElementById('jobServiceType').value,
+        bedrooms: document.getElementById('jobBedrooms').value,
+        bathrooms: document.getElementById('jobBathrooms').value,
+        condition: document.getElementById('jobCondition').value,
+        sqft: document.getElementById('jobSqft').value || null,
+        customer_id: document.getElementById('jobCustomer').value || null,
+        cleaner_id: document.getElementById('jobCleaner').value || null,
+        scheduled_date: document.getElementById('jobDate').value,
+        scheduled_time: document.getElementById('jobTime').value,
+        address: document.getElementById('jobAddress').value,
+        notes: document.getElementById('jobNotes').value,
+    };
+    const res = await apiCall(`/api/jobs/${businessId}`, 'POST', data);
+    if (res.success) location.reload();
+    else alert(res.error || 'Error creating job');
+}
+
+async function updateJobStatus(jobId, status) {
+    await apiCall(`/api/jobs/${jobId}/update`, 'POST', { status });
+    location.reload();
+}
+
+async function completeJob(jobId) {
+    const hours = prompt('Actual hours worked:');
+    if (hours === null) return;
+    await apiCall(`/api/jobs/${jobId}/update`, 'POST', {
+        status: 'COMPLETED',
+        actual_hours: parseFloat(hours) || null,
+    });
+    location.reload();
+}
+
+async function createCleaner() {
+    const res = await apiCall(`/api/cleaners/${businessId}`, 'POST', {
+        name: document.getElementById('cleanerName').value,
+        phone: document.getElementById('cleanerPhone').value,
+        hourly_rate: document.getElementById('cleanerRate').value,
+    });
+    if (res.success) location.reload();
+}
+
+function filterJobs() {
+    const status = document.getElementById('filterStatus').value;
+    const url = `/business/${businessId}/jobs` + (status ? `?status=${status}` : '');
+    window.location = url;
+}
+</script>
+{% endblock %}

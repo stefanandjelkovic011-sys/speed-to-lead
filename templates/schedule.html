@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+{% block title %}Schedule — {{ business.name }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1>Cleaner Schedule</h1>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-outline btn-sm" onclick="changeWeek(-1)">&larr; Prev</button>
+        <button class="btn btn-outline btn-sm" onclick="goToday()">Today</button>
+        <button class="btn btn-outline btn-sm" onclick="changeWeek(1)">Next &rarr;</button>
+        <span id="weekLabel" style="font-weight:600;min-width:200px;text-align:center;"></span>
+    </div>
+</div>
+
+<!-- Cleaner Tabs -->
+<div style="display:flex;align-items:center;gap:0;margin-bottom:0;">
+    <div class="tabs" id="cleanerTabs" style="flex:1;margin-bottom:0;">
+        <div class="tab active" data-cleaner="" onclick="switchCleaner(this,'')">All Cleaners</div>
+        {% for cl in cleaners %}
+        <div class="tab" data-cleaner="{{ cl.id }}" onclick="switchCleaner(this,'{{ cl.id }}')">{{ cl.name }}</div>
+        {% endfor %}
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('addCleanerRow').style.display = document.getElementById('addCleanerRow').style.display === 'none' ? 'flex' : 'none'" style="margin-left:10px;white-space:nowrap;">+ Add Cleaner</button>
+</div>
+
+<!-- Inline Add Cleaner -->
+<div id="addCleanerRow" style="display:none;gap:10px;align-items:end;padding:12px 15px;background:var(--surface);border:1px solid var(--border);border-radius:0 0 10px 10px;margin-bottom:15px;">
+    <div class="form-group" style="margin:0;flex:1;"><label style="font-size:11px;">Name</label><input type="text" id="newCleanerName" placeholder="Cleaner name"></div>
+    <div class="form-group" style="margin:0;flex:1;"><label style="font-size:11px;">Phone</label><input type="text" id="newCleanerPhone" placeholder="Phone"></div>
+    <div class="form-group" style="margin:0;width:100px;"><label style="font-size:11px;">Rate ($/hr)</label><input type="number" id="newCleanerRate" value="18" step="0.50"></div>
+    <button class="btn btn-primary btn-sm" onclick="addCleaner()">Add</button>
+</div>
+
+<!-- Weekly Calendar Grid -->
+<div class="card" style="padding:0;overflow:hidden;margin-top:15px;">
+    <div id="calendarGrid" style="display:grid;grid-template-columns:repeat(7,1fr);min-height:500px;"></div>
+</div>
+
+<!-- Monthly Overview -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <h2>Monthly Overview</h2>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn btn-outline btn-sm" onclick="changeMonth(-1)">&larr;</button>
+            <span id="monthLabel" style="font-weight:600;min-width:150px;text-align:center;"></span>
+            <button class="btn btn-outline btn-sm" onclick="changeMonth(1)">&rarr;</button>
+        </div>
+    </div>
+    <div id="monthGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);"></div>
+</div>
+
+<!-- Book Job Modal (opened by clicking a calendar day) -->
+<div id="bookModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+    <div class="card" style="width:520px;max-height:90vh;overflow-y:auto;">
+        <h2 id="bookModalTitle">Book Job</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="bookDate">
+            </div>
+            <div class="form-group">
+                <label>Time</label>
+                <input type="time" id="bookTime" value="09:00">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Service Type</label>
+            <select id="bookService">
+                {% for key, svc in service_types.items() %}
+                <option value="{{ key }}">{{ svc.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Bedrooms</label><input type="number" id="bookBedrooms" value="3" min="0"></div>
+            <div class="form-group"><label>Bathrooms</label><input type="number" id="bookBathrooms" value="2" min="0" step="0.5"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Condition</label>
+                <select id="bookCondition">
+                    {% for key, cond in conditions.items() %}
+                    <option value="{{ key }}" {% if key == 'average' %}selected{% endif %}>{{ cond.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group"><label>Sq Ft</label><input type="number" id="bookSqft" placeholder="optional"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Customer</label>
+                <select id="bookCustomer">
+                    <option value="">— Select —</option>
+                    {% for c in customers %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Assign Cleaner</label>
+                <select id="bookCleaner">
+                    <option value="">— Unassigned —</option>
+                    {% for cl in cleaners %}
+                    <option value="{{ cl.id }}">{{ cl.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group"><label>Address</label><input type="text" id="bookAddress" placeholder="123 Main St, Kennewick, WA"></div>
+        <div class="form-group"><label>Notes</label><textarea id="bookNotes" rows="2"></textarea></div>
+        <div id="bookPricePreview" style="padding:10px;background:var(--bg);border-radius:6px;margin-bottom:12px;font-size:14px;"></div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary" onclick="submitBooking()" style="flex:1;">Book Job</button>
+            <button class="btn btn-outline" onclick="closeBookModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.cal-day {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    min-height: 80px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.cal-day:last-child { border-right: none; }
+.cal-day:hover { background: var(--surface2); }
+.cal-day-header {
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+}
+.cal-day-date {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 4px 10px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.cal-day-date.today { color: var(--primary); font-weight: 700; }
+.cal-add-btn {
+    font-size: 16px;
+    color: var(--text-dim);
+    opacity: 0;
+    transition: opacity 0.15s;
+    line-height: 1;
+}
+.cal-day:hover .cal-add-btn { opacity: 1; color: var(--primary); }
+.cal-job {
+    margin: 3px 6px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: default;
+    line-height: 1.3;
+}
+.cal-job.scheduled { background: #3b82f618; border-left: 3px solid var(--info); }
+.cal-job.in-progress { background: #f59e0b18; border-left: 3px solid var(--warning); }
+.cal-job.completed { background: #22c55e18; border-left: 3px solid var(--success); }
+.cal-job .cal-job-time { font-weight: 600; color: var(--text); }
+.cal-job .cal-job-detail { color: var(--text-dim); }
+.cal-job .cal-job-cleaner { color: var(--primary); font-weight: 500; }
+.month-cell {
+    background: var(--surface);
+    min-height: 90px;
+    padding: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.month-cell:hover { background: var(--surface2); }
+.month-cell.other-month { opacity: 0.3; }
+.month-cell-date { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.month-cell-date.today { color: var(--primary); }
+.month-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin: 1px;
+}
+.month-dot.scheduled { background: var(--info); }
+.month-dot.in-progress { background: var(--warning); }
+.month-dot.completed { background: var(--success); }
+</style>
+<script>
+const businessId = {{ business.id }};
+const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let currentWeekStart = getMonday(new Date());
+let currentMonth = new Date();
+let selectedCleaner = '';
+
+function getMonday(d) {
+    d = new Date(d);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+}
+
+function fmt(d) { return d.toISOString().split('T')[0]; }
+
+function switchCleaner(tab, cleanerId) {
+    document.querySelectorAll('#cleanerTabs .tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    selectedCleaner = cleanerId;
+    loadWeek();
+    loadMonth();
+}
+
+function changeWeek(dir) {
+    currentWeekStart.setDate(currentWeekStart.getDate() + dir * 7);
+    loadWeek();
+}
+
+function goToday() {
+    currentWeekStart = getMonday(new Date());
+    loadWeek();
+}
+
+function changeMonth(dir) {
+    currentMonth.setMonth(currentMonth.getMonth() + dir);
+    loadMonth();
+}
+
+// --- Click-to-book ---
+function openBookModal(dateStr) {
+    document.getElementById('bookDate').value = dateStr;
+    document.getElementById('bookModalTitle').textContent = 'Book Job — ' + dateStr;
+    // Pre-select the currently filtered cleaner
+    if (selectedCleaner) {
+        document.getElementById('bookCleaner').value = selectedCleaner;
+    }
+    updateBookPreview();
+    document.getElementById('bookModal').style.display = 'flex';
+}
+
+function closeBookModal() {
+    document.getElementById('bookModal').style.display = 'none';
+}
+
+// Live price preview
+['bookService','bookBedrooms','bookBathrooms','bookCondition','bookSqft'].forEach(id => {
+    document.getElementById(id).addEventListener('change', updateBookPreview);
+    document.getElementById(id).addEventListener('input', updateBookPreview);
+});
+
+async function updateBookPreview() {
+    try {
+        const res = await apiCall('/api/pricing/calculate', 'POST', {
+            service_type: document.getElementById('bookService').value,
+            bedrooms: document.getElementById('bookBedrooms').value,
+            bathrooms: document.getElementById('bookBathrooms').value,
+            condition: document.getElementById('bookCondition').value,
+            sqft: document.getElementById('bookSqft').value || null,
+        });
+        document.getElementById('bookPricePreview').innerHTML =
+            `<strong>Price: $${res.price.toFixed(2)}</strong> &mdash; ${res.estimated_hours}h est. &mdash; Profit: $${res.costs.profit.toFixed(2)} (${res.costs.margin_pct}%)`;
+    } catch(e) {}
+}
+
+async function submitBooking() {
+    const data = {
+        service_type: document.getElementById('bookService').value,
+        bedrooms: document.getElementById('bookBedrooms').value,
+        bathrooms: document.getElementById('bookBathrooms').value,
+        condition: document.getElementById('bookCondition').value,
+        sqft: document.getElementById('bookSqft').value || null,
+        customer_id: document.getElementById('bookCustomer').value || null,
+        cleaner_id: document.getElementById('bookCleaner').value || null,
+        scheduled_date: document.getElementById('bookDate').value,
+        scheduled_time: document.getElementById('bookTime').value,
+        address: document.getElementById('bookAddress').value,
+        notes: document.getElementById('bookNotes').value,
+    };
+    if (!data.scheduled_date) { alert('Select a date'); return; }
+    const res = await apiCall(`/api/jobs/${businessId}`, 'POST', data);
+    if (res.success) {
+        closeBookModal();
+        loadWeek();
+        loadMonth();
+    } else {
+        alert(res.error || 'Error creating job');
+    }
+}
+
+// --- Add Cleaner inline ---
+async function addCleaner() {
+    const name = document.getElementById('newCleanerName').value.trim();
+    if (!name) { alert('Enter a cleaner name'); return; }
+    const res = await apiCall(`/api/cleaners/${businessId}`, 'POST', {
+        name: name,
+        phone: document.getElementById('newCleanerPhone').value,
+        hourly_rate: document.getElementById('newCleanerRate').value,
+    });
+    if (res.success) location.reload();
+}
+
+// --- Weekly Calendar ---
+async function loadWeek() {
+    const start = new Date(currentWeekStart);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+
+    const startStr = fmt(start);
+    const endStr = fmt(end);
+    document.getElementById('weekLabel').textContent =
+        `${start.toLocaleDateString('en-US', {month:'short',day:'numeric'})} — ${end.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})}`;
+
+    let url = `/api/schedule/${businessId}?start=${startStr}&end=${endStr}`;
+    if (selectedCleaner) url += `&cleaner_id=${selectedCleaner}`;
+
+    const jobs = await (await fetch(url)).json();
+    const today = fmt(new Date());
+
+    let html = '';
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const dateStr = fmt(d);
+        const isToday = dateStr === today;
+        const dayJobs = jobs.filter(j => j.scheduled_date === dateStr);
+
+        html += `<div class="cal-day" onclick="openBookModal('${dateStr}')">
+            <div class="cal-day-header">${dayNames[i]}</div>
+            <div class="cal-day-date ${isToday ? 'today' : ''}">
+                <span>${d.toLocaleDateString('en-US', {month:'short',day:'numeric'})}</span>
+                <span class="cal-add-btn">+</span>
+            </div>`;
+
+        dayJobs.forEach(j => {
+            const statusClass = j.status.toLowerCase().replace('_','-');
+            const time = j.scheduled_time ? j.scheduled_time.substring(0,5) : '';
+            html += `<div class="cal-job ${statusClass}" onclick="event.stopPropagation()" title="${j.notes || ''}">
+                ${time ? `<div class="cal-job-time">${time}</div>` : ''}
+                <div class="cal-job-detail">${j.service_type.replace(/_/g,' ')}</div>
+                ${j.customer_name ? `<div class="cal-job-detail">${j.customer_name}</div>` : ''}
+                ${j.cleaner_name ? `<div class="cal-job-cleaner">${j.cleaner_name}</div>` : ''}
+            </div>`;
+        });
+
+        html += '</div>';
+    }
+    document.getElementById('calendarGrid').innerHTML = html;
+}
+
+// --- Monthly Calendar ---
+async function loadMonth() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    document.getElementById('monthLabel').textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - ((firstDay.getDay() + 6) % 7));
+    const endDate = new Date(lastDay);
+    const remainingDays = (7 - ((lastDay.getDay() + 6) % 7)) % 7;
+    endDate.setDate(endDate.getDate() + remainingDays);
+
+    let url = `/api/schedule/${businessId}?start=${fmt(startDate)}&end=${fmt(endDate)}`;
+    if (selectedCleaner) url += `&cleaner_id=${selectedCleaner}`;
+    const jobs = await (await fetch(url)).json();
+
+    const today = fmt(new Date());
+
+    let html = dayNames.map(d => `<div style="background:var(--surface2);padding:6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;">${d}</div>`).join('');
+
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+        const dateStr = fmt(cur);
+        const isCurrentMonth = cur.getMonth() === month;
+        const isToday = dateStr === today;
+        const dayJobs = jobs.filter(j => j.scheduled_date === dateStr);
+
+        html += `<div class="month-cell ${isCurrentMonth ? '' : 'other-month'}" onclick="openBookModal('${dateStr}')">
+            <div class="month-cell-date ${isToday ? 'today' : ''}">${cur.getDate()}</div>
+            ${dayJobs.map(j => `<span class="month-dot ${j.status.toLowerCase().replace('_','-')}" title="${j.service_type} - ${j.cleaner_name || 'Unassigned'}"></span>`).join('')}
+            ${dayJobs.length > 0 ? `<div style="font-size:10px;color:var(--text-dim);">${dayJobs.length} job${dayJobs.length > 1 ? 's' : ''}</div>` : ''}
+        </div>`;
+        cur.setDate(cur.getDate() + 1);
+    }
+    document.getElementById('monthGrid').innerHTML = html;
+}
+
+// Init
+loadWeek();
+loadMonth();
+</script>
+{% endblock %}

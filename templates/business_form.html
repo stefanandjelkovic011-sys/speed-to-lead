@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if business else 'New' }} Business — Speed-to-Lead{% endblock %}
+{% block content %}
+<h1>{{ 'Edit Business' if business else 'Add New Business' }}</h1>
+
+<form method="POST" class="card" style="max-width:800px;">
+    <h2>General</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Business Name *</label>
+            <input type="text" name="name" value="{{ business.name if business else '' }}" required placeholder="e.g., Smith HVAC">
+        </div>
+        {% if not business %}
+        <div class="form-group">
+            <label>Org ID * (unique identifier)</label>
+            <input type="text" name="org_id" required placeholder="e.g., smith-hvac-001">
+        </div>
+        {% endif %}
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Timezone</label>
+            <select name="timezone">
+                {% for tz in ['America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Phoenix'] %}
+                <option value="{{ tz }}" {{ 'selected' if business and business.timezone == tz else '' }}>{{ tz }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>AI Chatbot</label>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;">
+                <input type="checkbox" name="ai_chatbot_enabled" {{ 'checked' if not business or business.ai_chatbot_enabled else '' }} style="width:auto;">
+                Enable AI chatbot for new leads
+            </label>
+        </div>
+    </div>
+
+    <h2 style="margin-top:25px;">Platform IDs</h2>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:15px;">Enter the platform-specific IDs to connect this business to each lead source.</p>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label>Google LSA Customer ID</label>
+            <input type="text" name="google_lsa_customer_id" value="{{ business.google_lsa_customer_id if business else '' }}" placeholder="e.g., 123-456-7890">
+        </div>
+        <div class="form-group">
+            <label>Yelp Business ID</label>
+            <input type="text" name="yelp_business_id" value="{{ business.yelp_business_id if business else '' }}" placeholder="e.g., smith-hvac-atlanta">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Thumbtack Pro ID</label>
+            <input type="text" name="thumbtack_pro_id" value="{{ business.thumbtack_pro_id if business else '' }}" placeholder="e.g., 0123456789">
+        </div>
+        <div class="form-group">
+            <label>Angi Service Provider ID</label>
+            <input type="text" name="angi_provider_id" value="{{ business.angi_provider_id if business else '' }}" placeholder="e.g., SP-12345">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" name="chat_widget_enabled" {{ 'checked' if business and business.chat_widget_enabled else '' }} style="width:auto;">
+                Enable Chat Widget
+            </label>
+        </div>
+        <div class="form-group">
+            <label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" name="contact_form_enabled" {{ 'checked' if business and business.contact_form_enabled else '' }} style="width:auto;">
+                Enable Contact Form
+            </label>
+        </div>
+    </div>
+
+    <h2 style="margin-top:25px;">Follow-Up Settings</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Operating Hours Start (0-23)</label>
+            <input type="number" name="operating_hours_start" min="0" max="23" value="{{ business.operating_hours_start if business else 9 }}">
+        </div>
+        <div class="form-group">
+            <label>Operating Hours End (0-23)</label>
+            <input type="number" name="operating_hours_end" min="0" max="23" value="{{ business.operating_hours_end if business else 21 }}">
+        </div>
+    </div>
+    <div class="form-group">
+        <label>Max Follow-Ups</label>
+        <input type="number" name="max_follow_ups" min="0" max="10" value="{{ business.max_follow_ups if business else 4 }}" style="max-width:200px;">
+    </div>
+
+    <div style="margin-top:25px;display:flex;gap:10px;">
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if business else 'Create Business' }}</button>
+        <a href="{{ url_for('index') }}" class="btn btn-outline">Cancel</a>
+        {% if business %}
+        <form method="POST" action="{{ url_for('business_delete', business_id=business.id) }}" style="margin-left:auto;" onsubmit="return confirm('Delete this business and all its data?')">
+            <button type="submit" class="btn btn-danger">Delete Business</button>
+        </form>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

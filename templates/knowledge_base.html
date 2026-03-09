@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base — {{ business.name }} — Speed-to-Lead{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1>Knowledge Base — {{ business.name }}</h1>
+    <button class="btn btn-primary" onclick="document.getElementById('addForm').style.display=document.getElementById('addForm').style.display==='none'?'block':'none'">+ Add Entry</button>
+</div>
+
+<!-- Add Entry Form -->
+<div id="addForm" class="card" style="display:none;">
+    <h2>Add Knowledge Base Entry</h2>
+    <form method="POST" action="{{ url_for('kb_create', business_id=business.id) }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" name="name" required placeholder="e.g., HVAC Services, Pricing Info">
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category">
+                    <option value="services">Services</option>
+                    <option value="pricing">Pricing</option>
+                    <option value="hours">Hours</option>
+                    <option value="faq">FAQ</option>
+                    <option value="policies">Policies</option>
+                    <option value="general" selected>General</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Content *</label>
+            <textarea name="content" required placeholder="Enter the knowledge base content..." rows="6"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary">Add Entry</button>
+            <button type="button" class="btn btn-outline" onclick="document.getElementById('addForm').style.display='none'">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<!-- Category Filters -->
+<div class="tabs" style="margin-bottom:20px;">
+    <div class="tab active" onclick="filterCategory('all', this)">All</div>
+    <div class="tab" onclick="filterCategory('services', this)">Services</div>
+    <div class="tab" onclick="filterCategory('pricing', this)">Pricing</div>
+    <div class="tab" onclick="filterCategory('hours', this)">Hours</div>
+    <div class="tab" onclick="filterCategory('faq', this)">FAQ</div>
+    <div class="tab" onclick="filterCategory('policies', this)">Policies</div>
+    <div class="tab" onclick="filterCategory('general', this)">General</div>
+</div>
+
+<!-- KB Entries -->
+<div id="kbEntries">
+{% for kb in kbs %}
+<div class="card kb-entry" data-category="{{ kb.category }}" data-id="{{ kb.id }}">
+    <div class="card-header">
+        <div>
+            <h3 style="margin-bottom:2px;">{{ kb.name }}</h3>
+            <span class="badge badge-platform">{{ kb.category }}</span>
+            {% if kb.is_active %}
+            <span style="color:var(--success);font-size:12px;margin-left:8px;">Active</span>
+            {% else %}
+            <span style="color:var(--text-dim);font-size:12px;margin-left:8px;">Inactive</span>
+            {% endif %}
+        </div>
+        <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm btn-outline" onclick="toggleEdit({{ kb.id }})">Edit</button>
+            <form method="POST" action="{{ url_for('kb_delete', kb_id=kb.id) }}" style="display:inline;" onsubmit="return confirm('Delete this entry?')">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+    <div class="kb-content" style="font-size:13px;color:var(--text-dim);white-space:pre-wrap;max-height:150px;overflow:hidden;">{{ kb.content }}</div>
+
+    <!-- Edit Form (hidden) -->
+    <div id="editForm-{{ kb.id }}" style="display:none;margin-top:15px;border-top:1px solid var(--border);padding-top:15px;">
+        <form method="POST" action="{{ url_for('kb_edit', kb_id=kb.id) }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" name="name" value="{{ kb.name }}">
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select name="category">
+                        {% for cat in ['services','pricing','hours','faq','policies','general'] %}
+                        <option value="{{ cat }}" {{ 'selected' if kb.category == cat else '' }}>{{ cat|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Content</label>
+                <textarea name="content" rows="6">{{ kb.content }}</textarea>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" name="is_active" {{ 'checked' if kb.is_active else '' }} style="width:auto;">
+                    Active
+                </label>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-outline" onclick="toggleEdit({{ kb.id }})">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+</div>
+
+{% if not kbs %}
+<div class="card empty-state">
+    <div class="icon">&#128218;</div>
+    <h2>No knowledge base entries</h2>
+    <p style="margin:10px 0;">Add entries about services, pricing, hours, and FAQ so the AI can answer customer questions.</p>
+</div>
+{% endif %}
+
+<!-- Share Section -->
+<div class="card" style="margin-top:20px;">
+    <h2>Share Knowledge Base</h2>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:10px;">Generate a secure share link for read-only review.</p>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-primary" onclick="generateShareToken()">Generate Share Link</button>
+    </div>
+    <div id="shareLinkContainer" style="display:none;margin-top:10px;">
+        <div class="share-link">
+            <input type="text" id="shareLink" readonly>
+            <button class="btn btn-sm btn-outline" onclick="copyShareLink()">Copy</button>
+        </div>
+    </div>
+    {% if business.share_token %}
+    <div style="margin-top:10px;">
+        <div class="share-link">
+            <input type="text" id="existingShareLink" value="{{ url_for('kb_shared_view', token=business.share_token, _external=True) }}" readonly>
+            <button class="btn btn-sm btn-outline" onclick="document.getElementById('existingShareLink').select();document.execCommand('copy');alert('Link copied!');">Copy</button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterCategory(cat, el) {
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.kb-entry').forEach(entry => {
+        entry.style.display = (cat === 'all' || entry.dataset.category === cat) ? '' : 'none';
+    });
+}
+
+function toggleEdit(id) {
+    const form = document.getElementById('editForm-' + id);
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function copyShareLink() {
+    const input = document.getElementById('shareLink');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied!');
+}
+
+async function generateShareToken() {
+    const res = await fetch('/kb/share/{{ business.id }}', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+    const data = await res.json();
+    if (data.success) {
+        document.getElementById('shareLink').value = data.share_url;
+        document.getElementById('shareLinkContainer').style.display = 'block';
+    } else {
+        alert('Failed to generate share link');
+    }
+}
+</script>
+{% endblock %}

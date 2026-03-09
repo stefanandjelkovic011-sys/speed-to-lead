@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% block title %}Testing — {{ business.name }} — Speed-to-Lead{% endblock %}
+{% block content %}
+<h1>Testing Platform — {{ business.name }}</h1>
+
+<div class="tabs">
+    <div class="tab active" onclick="switchTab('sim', this)">Lead Simulation</div>
+    <div class="tab" onclick="switchTab('conv', this)">Conversation</div>
+    <div class="tab" onclick="switchTab('kb', this)">KB Testing</div>
+    <div class="tab" onclick="switchTab('batch', this)">Batch KB</div>
+    <div class="tab" onclick="switchTab('health', this)">Health Check</div>
+    <div class="tab" onclick="switchTab('escalation', this)">Escalation</div>
+    <div class="tab" onclick="switchTab('comparison', this)">Platform Comparison</div>
+</div>
+
+<!-- Tab 1: Lead Simulation -->
+<div id="tab-sim" class="tab-content active">
+    <div class="card">
+        <h2>Simulate Inbound Lead</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Platform</label>
+                <select id="simPlatform">
+                    <option value="google_lsa">Google LSA</option>
+                    <option value="yelp">Yelp</option>
+                    <option value="thumbtack">Thumbtack</option>
+                    <option value="angi">Angi</option>
+                    <option value="chat_widget">Chat Widget</option>
+                    <option value="contact_form">Contact Form</option>
+                    <option value="duke_energy">Duke Energy</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Customer Name</label>
+                <input type="text" id="simName" value="Test Customer">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Phone</label>
+                <input type="text" id="simPhone" value="555-0100">
+            </div>
+            <div class="form-group">
+                <label>Service Type</label>
+                <input type="text" id="simService" value="AC Repair">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Message *</label>
+            <textarea id="simMessage" rows="3" placeholder="Hi, I need help with my AC..."></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="simulateLead()">Send Lead</button>
+    </div>
+    <div id="simResult" style="margin-top:15px;"></div>
+</div>
+
+<!-- Tab 2: Conversation Testing -->
+<div id="tab-conv" class="tab-content">
+    <div class="card">
+        <h2>Continue Conversation</h2>
+        <div class="form-group">
+            <label>Lead ID</label>
+            <input type="number" id="convLeadId" placeholder="Enter lead ID from simulation">
+        </div>
+        <div class="chat-container" id="convChat" style="min-height:200px;"></div>
+        <div class="chat-input-area">
+            <input type="text" id="convMessage" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendConvMessage()">
+            <button class="btn btn-primary" onclick="sendConvMessage()">Send</button>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 3: KB Testing -->
+<div id="tab-kb" class="tab-content">
+    <div class="card">
+        <h2>Knowledge Base Q&A Test</h2>
+        <div class="form-group">
+            <label>Question</label>
+            <input type="text" id="kbQuestion" placeholder="e.g., What are your hours?">
+        </div>
+        <button class="btn btn-primary" onclick="testKB()">Ask</button>
+        <div id="kbResult" style="margin-top:15px;"></div>
+    </div>
+</div>
+
+<!-- Tab 4: Batch KB Testing -->
+<div id="tab-batch" class="tab-content">
+    <div class="card">
+        <h2>Batch Knowledge Base Test</h2>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:15px;">Add questions with expected keywords. The system will verify each answer contains the keywords.</p>
+        <div id="batchQuestions">
+            <div class="batch-row" style="display:flex;gap:10px;margin-bottom:10px;">
+                <input type="text" class="bq-question" placeholder="Question" style="flex:2;">
+                <input type="text" class="bq-keywords" placeholder="Expected keywords (comma-separated)" style="flex:1;">
+                <button class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">X</button>
+            </div>
+        </div>
+        <button class="btn btn-outline" onclick="addBatchRow()" style="margin-bottom:15px;">+ Add Question</button>
+        <br>
+        <button class="btn btn-primary" onclick="runBatchTest()">Run Batch Test</button>
+        <div id="batchResult" style="margin-top:15px;"></div>
+    </div>
+</div>
+
+<!-- Tab 5: Health Check -->
+<div id="tab-health" class="tab-content">
+    <div class="card">
+        <h2>Claude CLI Health Check</h2>
+        <button class="btn btn-primary" onclick="checkHealthDetail()">Run Health Check</button>
+        <div id="healthResult" style="margin-top:15px;"></div>
+        <div id="metricsResult" style="margin-top:15px;"></div>
+    </div>
+</div>
+
+<!-- Tab 6: Escalation Testing -->
+<div id="tab-escalation" class="tab-content">
+    <div class="card">
+        <h2>Escalation Scenario Testing</h2>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:15px;">Test if the AI properly escalates in these scenarios.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px;">
+            <button class="btn btn-outline" onclick="testEscalation('I am absolutely furious! Your technician broke my pipe and flooded my basement. I want to speak to a manager NOW or I am calling my lawyer!')">Angry Customer</button>
+            <button class="btn btn-outline" onclick="testEscalation('Can you help me with my tax returns? I need someone to do my accounting.')">Out of Scope</button>
+            <button class="btn btn-outline" onclick="testEscalation('I smell gas in my house and I hear a hissing sound from the pipe. What should I do?')">Safety Emergency</button>
+        </div>
+        <div class="form-group">
+            <label>Custom Scenario</label>
+            <textarea id="escalationMessage" rows="3" placeholder="Type a custom escalation scenario..."></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="testEscalation(document.getElementById('escalationMessage').value)">Test Escalation</button>
+        <div id="escalationResult" style="margin-top:15px;"></div>
+    </div>
+</div>
+
+<!-- Tab 7: Platform Comparison -->
+<div id="tab-comparison" class="tab-content">
+    <div class="card">
+        <h2>Platform Tone Comparison</h2>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:15px;">Send the same message across platforms and compare AI tone.</p>
+        <div class="form-group">
+            <label>Message</label>
+            <textarea id="compMessage" rows="3" placeholder="e.g., Hi, how much does AC repair cost?"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Platforms to Compare</label>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="google_lsa" checked style="width:auto;"> Google LSA
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="yelp" checked style="width:auto;"> Yelp
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="thumbtack" checked style="width:auto;"> Thumbtack
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="chat_widget" checked style="width:auto;"> Chat Widget
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="angi" style="width:auto;"> Angi
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="contact_form" style="width:auto;"> Contact Form
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;">
+                    <input type="checkbox" class="comp-platform" value="duke_energy" style="width:auto;"> Duke Energy
+                </label>
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="runComparison()">Compare</button>
+        <div id="compResult" style="margin-top:15px;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const businessId = {{ business.id }};
+
+function switchTab(id, el) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    el.classList.add('active');
+}
+
+// Tab 1: Lead Simulation
+async function simulateLead() {
+    const msg = document.getElementById('simMessage').value.trim();
+    if (!msg) return alert('Enter a message');
+    showLoading('Simulating lead...');
+    const result = await apiCall('/api/test/lead-simulation', 'POST', {
+        business_id: businessId,
+        platform: document.getElementById('simPlatform').value,
+        customer_name: document.getElementById('simName').value,
+        customer_phone: document.getElementById('simPhone').value,
+        service_type: document.getElementById('simService').value,
+        message: msg
+    });
+    hideLoading();
+    const el = document.getElementById('simResult');
+    if (result.success) {
+        el.innerHTML = `<div class="test-result ${result.action === 'responded' ? 'pass' : 'info'}">
+            <div class="test-label">Action: ${result.action} | Lead ID: ${result.lead_id}</div>
+            <div class="test-content">${result.response || result.message || result.reason || ''}</div>
+        </div>`;
+        document.getElementById('convLeadId').value = result.lead_id;
+    } else {
+        el.innerHTML = `<div class="test-result fail"><div class="test-content">${result.error}</div></div>`;
+    }
+}
+
+// Tab 2: Conversation
+async function sendConvMessage() {
+    const leadId = document.getElementById('convLeadId').value;
+    const msg = document.getElementById('convMessage').value.trim();
+    if (!leadId || !msg) return alert('Enter lead ID and message');
+    document.getElementById('convMessage').value = '';
+    showLoading('Getting AI response...');
+    const result = await apiCall('/api/test/conversation', 'POST', {lead_id: parseInt(leadId), message: msg});
+    hideLoading();
+    await loadConvMessages(leadId);
+}
+
+async function loadConvMessages(leadId) {
+    const res = await fetch(`/api/lead/${leadId}/messages`);
+    const msgs = await res.json();
+    const chat = document.getElementById('convChat');
+    chat.innerHTML = msgs.filter(m => !m.is_internal_note).map(m => {
+        const cls = m.sender === 'Homeowner' ? 'inbound' : 'outbound';
+        return `<div class="chat-message ${cls}"><div class="chat-sender">${m.sender}</div><div class="chat-bubble">${m.content}</div><div class="chat-time">${m.created_at}</div></div>`;
+    }).join('');
+    chat.scrollTop = chat.scrollHeight;
+}
+
+document.getElementById('convLeadId').addEventListener('change', function() { if (this.value) loadConvMessages(this.value); });
+
+// Tab 3: KB Testing
+async function testKB() {
+    const q = document.getElementById('kbQuestion').value.trim();
+    if (!q) return;
+    showLoading('Testing knowledge base...');
+    const result = await apiCall('/api/test/kb', 'POST', {business_id: businessId, question: q});
+    hideLoading();
+    document.getElementById('kbResult').innerHTML = `<div class="test-result ${result.success ? 'pass' : 'fail'}">
+        <div class="test-label">${result.success ? 'Response' : 'Error'}</div>
+        <div class="test-content">${result.response || result.error}</div>
+    </div>`;
+}
+
+// Tab 4: Batch KB
+function addBatchRow() {
+    const container = document.getElementById('batchQuestions');
+    const row = document.createElement('div');
+    row.className = 'batch-row';
+    row.style.cssText = 'display:flex;gap:10px;margin-bottom:10px;';
+    row.innerHTML = `<input type="text" class="bq-question" placeholder="Question" style="flex:2;">
+        <input type="text" class="bq-keywords" placeholder="Expected keywords (comma-separated)" style="flex:1;">
+        <button class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">X</button>`;
+    container.appendChild(row);
+}
+
+async function runBatchTest() {
+    const rows = document.querySelectorAll('.batch-row');
+    const questions = [];
+    rows.forEach(row => {
+        const q = row.querySelector('.bq-question').value.trim();
+        const kw = row.querySelector('.bq-keywords').value.trim();
+        if (q) questions.push({question: q, expected_keywords: kw ? kw.split(',').map(k => k.trim()) : []});
+    });
+    if (!questions.length) return alert('Add at least one question');
+    showLoading('Running batch test...');
+    const result = await apiCall('/api/test/kb-batch', 'POST', {business_id: businessId, questions: questions});
+    hideLoading();
+    const el = document.getElementById('batchResult');
+    if (!result.success) {
+        el.innerHTML = `<div class="test-result fail"><div class="test-content">${result.error}</div></div>`;
+        return;
+    }
+    const passed = result.results.filter(r => r.passed).length;
+    el.innerHTML = `<div style="margin-bottom:15px;font-size:16px;font-weight:600;">Score: ${passed}/${result.results.length} passed</div>` +
+        result.results.map(r => `<div class="test-result ${r.passed ? 'pass' : 'fail'}">
+            <div class="test-label">Q: ${r.question} | Keywords: ${r.expected_keywords.join(', ') || 'none'}</div>
+            <div class="test-content">${r.response}</div>
+        </div>`).join('');
+}
+
+// Tab 5: Health Check
+async function checkHealthDetail() {
+    showLoading('Checking Claude CLI...');
+    const [healthRes, metricsRes] = await Promise.all([
+        fetch('/api/test/health').then(r => r.json()),
+        fetch('/api/test/metrics').then(r => r.json()).catch(() => null)
+    ]);
+    hideLoading();
+    document.getElementById('healthResult').innerHTML = `<div class="test-result ${healthRes.claude_cli_available ? 'pass' : 'fail'}">
+        <div class="test-label">Claude CLI Status</div>
+        <div class="test-content">${healthRes.claude_cli_available ? 'Healthy - CLI is responding' : 'Unhealthy - CLI not responding'}</div>
+    </div>`;
+    if (metricsRes && metricsRes.metrics) {
+        const m = metricsRes.metrics;
+        document.getElementById('metricsResult').innerHTML = `<div class="card">
+            <h3>Bridge Metrics</h3>
+            <table style="font-size:13px;">
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Total Calls</td><td>${m.total_calls}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Successful</td><td>${m.successful}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Failed</td><td>${m.failed}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Avg Latency</td><td>${m.avg_latency_seconds}s</td></tr>
+            </table>
+        </div>`;
+    }
+}
+
+// Tab 6: Escalation
+async function testEscalation(msg) {
+    if (!msg || !msg.trim()) return alert('Enter a message');
+    showLoading('Testing escalation...');
+    const result = await apiCall('/api/test/lead-simulation', 'POST', {
+        business_id: businessId,
+        platform: 'test_simulation',
+        customer_name: 'Escalation Test',
+        message: msg
+    });
+    hideLoading();
+    const el = document.getElementById('escalationResult');
+    const isEscalated = result.action === 'escalated';
+    el.innerHTML = `<div class="test-result ${isEscalated ? 'pass' : 'fail'}">
+        <div class="test-label">${isEscalated ? 'ESCALATED (correct)' : 'NOT ESCALATED - Action: ' + result.action}</div>
+        <div class="test-content">${result.response || result.reason || result.message || ''}</div>
+    </div>`;
+}
+
+// Tab 7: Platform Comparison
+async function runComparison() {
+    const msg = document.getElementById('compMessage').value.trim();
+    if (!msg) return alert('Enter a message');
+    const platforms = [];
+    document.querySelectorAll('.comp-platform:checked').forEach(cb => platforms.push(cb.value));
+    if (!platforms.length) return alert('Select at least one platform');
+    showLoading('Comparing across platforms...');
+    const result = await apiCall('/api/test/platform-comparison', 'POST', {
+        business_id: businessId,
+        message: msg,
+        platforms: platforms
+    });
+    hideLoading();
+    const el = document.getElementById('compResult');
+    if (!result.success) {
+        el.innerHTML = `<div class="test-result fail"><div class="test-content">${result.error}</div></div>`;
+        return;
+    }
+    el.innerHTML = Object.entries(result.results).map(([platform, data]) =>
+        `<div class="test-result ${data.success ? 'info' : 'fail'}">
+            <div class="test-label">${platform}</div>
+            <div class="test-content">${data.response}</div>
+        </div>`
+    ).join('');
+}
+</script>
+{% endblock %}

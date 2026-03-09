@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Outreach — {{ business.name }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1>Network & Outreach</h1>
+    <button class="btn btn-primary" onclick="document.getElementById('newOutreachModal').style.display='flex'">+ New Outreach</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ stats.total }}</div>
+        <div class="label">Total Contacts</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--warning);">{{ stats.PENDING }}</div>
+        <div class="label">Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">{{ stats.SUCCESS }}</div>
+        <div class="label">Successful</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--text-dim);">{{ stats.NO_RESPONSE }}</div>
+        <div class="label">No Response</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--danger);">{{ stats.DECLINED }}</div>
+        <div class="label">Declined</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--info);">{{ stats.success_rate }}%</div>
+        <div class="label">Success Rate</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Outreach Log</h2>
+        <div style="display:flex;gap:10px;">
+            <select id="filterStatus" onchange="filterOutreach()" style="width:auto;">
+                <option value="">All</option>
+                <option value="PENDING" {% if request.args.get('status') == 'PENDING' %}selected{% endif %}>Pending</option>
+                <option value="SUCCESS" {% if request.args.get('status') == 'SUCCESS' %}selected{% endif %}>Successful</option>
+                <option value="NO_RESPONSE" {% if request.args.get('status') == 'NO_RESPONSE' %}selected{% endif %}>No Response</option>
+                <option value="DECLINED" {% if request.args.get('status') == 'DECLINED' %}selected{% endif %}>Declined</option>
+            </select>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Contact</th>
+                <th>Company</th>
+                <th>Type</th>
+                <th>Channel</th>
+                <th>Date</th>
+                <th>Follow Up</th>
+                <th>Notes</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in outreach_list %}
+            <tr id="outreach-{{ o.id }}">
+                <td>
+                    <span class="badge badge-{{ o.status|lower|replace('_','-') }}">{{ o.status }}</span>
+                </td>
+                <td><strong>{{ o.contact_name }}</strong></td>
+                <td>{{ o.company or '-' }}</td>
+                <td>{{ o.outreach_type|replace('_',' ')|title }}</td>
+                <td>{{ o.channel|title }}</td>
+                <td style="font-size:12px;">{{ o.contacted_at[:10] if o.contacted_at else o.created_at[:10] }}</td>
+                <td style="font-size:12px;">{{ o.follow_up_date or '-' }}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-dim);">{{ o.notes or '' }}</td>
+                <td>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                        {% if o.status == 'PENDING' %}
+                        <button class="btn btn-sm btn-success" onclick="setStatus({{ o.id }},'SUCCESS')" title="Mark Successful">Yes</button>
+                        <button class="btn btn-sm btn-outline" onclick="setStatus({{ o.id }},'NO_RESPONSE')" title="No Response">No Reply</button>
+                        <button class="btn btn-sm btn-danger" onclick="setStatus({{ o.id }},'DECLINED')" title="Declined">No</button>
+                        {% elif o.status == 'NO_RESPONSE' %}
+                        <button class="btn btn-sm btn-success" onclick="setStatus({{ o.id }},'SUCCESS')">Yes</button>
+                        <button class="btn btn-sm btn-danger" onclick="setStatus({{ o.id }},'DECLINED')">No</button>
+                        <button class="btn btn-sm btn-warning" onclick="setStatus({{ o.id }},'PENDING')">Retry</button>
+                        {% else %}
+                        <button class="btn btn-sm btn-warning" onclick="setStatus({{ o.id }},'PENDING')">Reset</button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-outline" onclick="editOutreach({{ o.id }})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteOutreach({{ o.id }})">X</button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not outreach_list %}
+    <div class="empty-state"><p>No outreach yet. Start networking to grow your business.</p></div>
+    {% endif %}
+</div>
+
+<!-- New Outreach Modal -->
+<div id="newOutreachModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+    <div class="card" style="width:500px;max-height:90vh;overflow-y:auto;">
+        <h2 id="outreachModalTitle">New Outreach</h2>
+        <input type="hidden" id="editOutreachId" value="">
+        <div class="form-group"><label>Contact Name</label><input type="text" id="outName" placeholder="John Smith"></div>
+        <div class="form-group"><label>Company / Organization</label><input type="text" id="outCompany" placeholder="e.g. Tri-Cities Realtors"></div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Outreach Type</label>
+                <select id="outType">
+                    <option value="cold_call">Cold Call</option>
+                    <option value="referral">Referral</option>
+                    <option value="networking_event">Networking Event</option>
+                    <option value="door_knock">Door Knock</option>
+                    <option value="partnership">Partnership</option>
+                    <option value="follow_up">Follow Up</option>
+                    <option value="social_media">Social Media</option>
+                    <option value="flyer_drop">Flyer Drop</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Channel</label>
+                <select id="outChannel">
+                    <option value="phone">Phone</option>
+                    <option value="email">Email</option>
+                    <option value="in_person">In Person</option>
+                    <option value="text">Text</option>
+                    <option value="social_media">Social Media</option>
+                    <option value="mail">Mail</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Contact Date</label><input type="date" id="outDate"></div>
+            <div class="form-group"><label>Follow-Up Date</label><input type="date" id="outFollowUp"></div>
+        </div>
+        <div class="form-group"><label>Notes</label><textarea id="outNotes" rows="3" placeholder="What was discussed, next steps..."></textarea></div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary" onclick="saveOutreach()" style="flex:1;">Save</button>
+            <button class="btn btn-outline" onclick="closeOutreachModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.badge-pending { background: #f59e0b20; color: var(--warning); }
+.badge-success { background: #22c55e20; color: var(--success); }
+.badge-no-response { background: #6b728020; color: var(--text-dim); }
+.badge-declined { background: #ef444420; color: var(--danger); }
+</style>
+<script>
+const businessId = {{ business.id }};
+
+function filterOutreach() {
+    const status = document.getElementById('filterStatus').value;
+    window.location = `/business/${businessId}/outreach` + (status ? `?status=${status}` : '');
+}
+
+function closeOutreachModal() {
+    document.getElementById('newOutreachModal').style.display = 'none';
+    document.getElementById('editOutreachId').value = '';
+    document.getElementById('outreachModalTitle').textContent = 'New Outreach';
+    ['outName','outCompany','outNotes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('outDate').value = '';
+    document.getElementById('outFollowUp').value = '';
+}
+
+async function saveOutreach() {
+    const editId = document.getElementById('editOutreachId').value;
+    const data = {
+        contact_name: document.getElementById('outName').value,
+        company: document.getElementById('outCompany').value,
+        outreach_type: document.getElementById('outType').value,
+        channel: document.getElementById('outChannel').value,
+        contacted_at: document.getElementById('outDate').value || null,
+        follow_up_date: document.getElementById('outFollowUp').value || null,
+        notes: document.getElementById('outNotes').value,
+    };
+    if (!data.contact_name) { alert('Contact name is required'); return; }
+
+    let res;
+    if (editId) {
+        res = await apiCall(`/api/outreach/${editId}/update`, 'POST', data);
+    } else {
+        res = await apiCall(`/api/outreach/${businessId}`, 'POST', data);
+    }
+    if (res.success) location.reload();
+    else alert(res.error || 'Error');
+}
+
+async function setStatus(id, status) {
+    const res = await apiCall(`/api/outreach/${id}/status`, 'POST', { status });
+    if (res.success) location.reload();
+}
+
+async function editOutreach(id) {
+    // Fetch current data from the row
+    const row = document.getElementById(`outreach-${id}`);
+    if (!row) return;
+    const cells = row.querySelectorAll('td');
+    document.getElementById('editOutreachId').value = id;
+    document.getElementById('outreachModalTitle').textContent = 'Edit Outreach';
+    document.getElementById('outName').value = cells[1].textContent.trim();
+    document.getElementById('outCompany').value = cells[2].textContent.trim() === '-' ? '' : cells[2].textContent.trim();
+    document.getElementById('outNotes').value = cells[7].textContent.trim();
+    document.getElementById('newOutreachModal').style.display = 'flex';
+}
+
+async function deleteOutreach(id) {
+    if (!confirm('Delete this outreach entry?')) return;
+    const res = await apiCall(`/api/outreach/${id}/delete`, 'POST', {});
+    if (res.success) location.reload();
+}
+</script>
+{% endblock %}

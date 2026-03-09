@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Lead #{{ lead.id }} — {{ lead.customer_name or 'Unknown' }} — Speed-to-Lead{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <div>
+        <a href="{{ url_for('dashboard', business_id=business.id) }}" style="color:var(--text-dim);text-decoration:none;font-size:13px;">&larr; Back to Dashboard</a>
+        <h1 style="margin-top:5px;">Lead #{{ lead.id }} — {{ lead.customer_name or 'Unknown' }}</h1>
+    </div>
+    <div>
+        <span class="badge badge-{{ lead.status|lower|replace('_','-') }}" style="font-size:14px;padding:5px 12px;">{{ lead.status }}</span>
+        <span class="badge badge-platform" style="font-size:14px;padding:5px 12px;">{{ lead.platform }}</span>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:3fr 2fr;gap:20px;">
+    <!-- Left: Chat -->
+    <div>
+        <div class="card">
+            <h2>Conversation</h2>
+            <div class="chat-container" id="chatContainer">
+                {% for msg in messages %}
+                <div class="chat-message {% if msg.sender == 'Homeowner' %}inbound{% elif msg.is_internal_note %}system{% else %}outbound{% endif %}">
+                    <div class="chat-sender">{{ msg.sender }}</div>
+                    <div class="chat-bubble">{{ msg.content }}</div>
+                    <div class="chat-time">{{ msg.created_at }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if lead.status != 'BOOKED' %}
+            <div style="margin-bottom:10px;">
+                <input type="text" id="csrName" placeholder="Your name (CSR)" style="width:200px;margin-bottom:8px;"
+                       value="" onchange="localStorage.setItem('csr_name',this.value)">
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+                <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right: Info + Actions -->
+    <div>
+        <!-- Customer Info -->
+        <div class="card">
+            <h3>Customer Info</h3>
+            <table style="font-size:13px;">
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Name</td><td>{{ lead.customer_name or '-' }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Phone</td><td>{{ lead.customer_phone or '-' }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Email</td><td>{{ lead.customer_email or '-' }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Address</td><td>{{ lead.customer_address or '-' }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Service</td><td>{{ lead.service_type or '-' }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">First Response</td><td>{{ lead.first_response_at or 'Not yet' }}</td></tr>
+            </table>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <h3>Actions</h3>
+            {% if lead.is_escalated %}
+            <div class="alert alert-danger" style="margin-bottom:10px;">This lead has been escalated</div>
+            {% endif %}
+
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                {% if lead.status != 'BOOKED' %}
+                <button class="btn btn-success btn-block" onclick="markBooked()">Mark Booked</button>
+                {% endif %}
+                {% if lead.status not in ('BOOKED', 'UNBOOKED') %}
+                <button class="btn btn-warning btn-block" onclick="markUnbooked()">Mark Unbooked</button>
+                {% endif %}
+                {% if lead.status not in ('BOOKED', 'NON_LEAD') %}
+                <button class="btn btn-outline btn-block" onclick="markNonLead()">Mark Non-Lead</button>
+                {% endif %}
+
+                {% if not lead.is_chatbot_enabled %}
+                <button class="btn btn-outline btn-block" onclick="reEnableChatbot()">Re-enable AI Chatbot</button>
+                {% else %}
+                <div style="font-size:12px;color:var(--success);text-align:center;">AI Chatbot Active</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Classification -->
+        {% if lead.classification_json %}
+        <div class="card">
+            <h3>Classification</h3>
+            <div id="classificationDisplay" style="font-size:13px;"></div>
+        </div>
+        {% endif %}
+
+        <!-- Follow-up Status -->
+        <div class="card">
+            <h3>Follow-up Status</h3>
+            <table style="font-size:13px;">
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Follow-ups Sent</td><td>{{ lead.follow_up_count }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Last Follow-up</td><td>{{ lead.last_follow_up_sent_at or 'None' }}</td></tr>
+                <tr><td style="color:var(--text-dim);padding:5px 15px 5px 0;">Assigned To</td><td>{{ lead.assigned_to or 'Unassigned' }}</td></tr>
+            </table>
+        </div>
+
+        <!-- Internal Notes -->
+        <div class="card">
+            <h3>Internal Notes</h3>
+            <div id="notesContainer" style="margin-bottom:10px;max-height:200px;overflow-y:auto;">
+                {% for msg in messages %}
+                {% if msg.is_internal_note %}
+                <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+                    <strong>{{ msg.sender }}</strong> <span style="color:var(--text-dim);">{{ msg.created_at }}</span><br>
+                    {{ msg.content }}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="noteInput" placeholder="Add a note..." style="flex:1;" onkeypress="if(event.key==='Enter')addNote()">
+                <button class="btn btn-outline" onclick="addNote()">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const leadId = {{ lead.id }};
+const businessId = {{ business.id }};
+
+// Restore CSR name
+document.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('csr_name');
+    if (saved) document.getElementById('csrName').value = saved;
+
+    // Parse classification JSON
+    {% if lead.classification_json %}
+    try {
+        const cls = JSON.parse({{ lead.classification_json|tojson }});
+        const el = document.getElementById('classificationDisplay');
+        el.innerHTML = Object.entries(cls).map(([k,v]) =>
+            `<div style="margin-bottom:4px;"><span style="color:var(--text-dim);">${k}:</span> ${Array.isArray(v) ? v.join(', ') : v}</div>`
+        ).join('');
+    } catch(e) {}
+    {% endif %}
+
+    scrollChat();
+});
+
+function scrollChat() {
+    const c = document.getElementById('chatContainer');
+    if (c) c.scrollTop = c.scrollHeight;
+}
+
+async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    const csrName = document.getElementById('csrName').value.trim() || 'CSR';
+    input.value = '';
+    showLoading('Sending message...');
+    try {
+        await apiCall(`/api/lead/${leadId}/message`, 'POST', {message: msg, csr_name: csrName});
+        await refreshMessages();
+    } catch(e) { console.error(e); }
+    hideLoading();
+}
+
+async function markBooked() {
+    const stLink = prompt('Enter ServiceTitan job link (optional):');
+    showLoading('Marking as booked...');
+    await apiCall(`/api/lead/${leadId}/book`, 'POST', {st_job_link: stLink || ''});
+    location.reload();
+}
+
+async function markUnbooked() {
+    showLoading('Marking as unbooked...');
+    await apiCall(`/api/lead/${leadId}/unbook`, 'POST', {});
+    location.reload();
+}
+
+async function markNonLead() {
+    if (!confirm('Mark this lead as non-lead?')) return;
+    await apiCall(`/api/lead/${leadId}/non-lead`, 'POST', {});
+    location.reload();
+}
+
+async function reEnableChatbot() {
+    await apiCall(`/api/lead/${leadId}/re-enable-chatbot`, 'POST', {});
+    location.reload();
+}
+
+async function addNote() {
+    const input = document.getElementById('noteInput');
+    const note = input.value.trim();
+    if (!note) return;
+    const csrName = document.getElementById('csrName').value.trim() || 'CSR';
+    input.value = '';
+    await apiCall(`/api/lead/${leadId}/note`, 'POST', {note: note, author: csrName});
+    location.reload();
+}
+
+async function refreshMessages() {
+    try {
+        const res = await fetch(`/api/lead/${leadId}/messages`);
+        const msgs = await res.json();
+        const container = document.getElementById('chatContainer');
+        container.innerHTML = msgs.filter(m => !m.is_internal_note).map(m => {
+            const cls = m.sender === 'Homeowner' ? 'inbound' : m.is_internal_note ? 'system' : 'outbound';
+            return `<div class="chat-message ${cls}">
+                <div class="chat-sender">${m.sender}</div>
+                <div class="chat-bubble">${m.content}</div>
+                <div class="chat-time">${m.created_at}</div>
+            </div>`;
+        }).join('');
+        scrollChat();
+    } catch(e) { console.error(e); }
+}
+
+// Poll for new messages every 5s
+setInterval(refreshMessages, 5000);
+</script>
+{% endblock %}

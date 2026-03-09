@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat — {{ business.name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: transparent; }
+        #chat-bubble {
+            position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px;
+            border-radius: 50%; background: #6366f1; color: white; border: none;
+            cursor: pointer; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center; z-index: 10000;
+        }
+        #chat-bubble:hover { background: #4f46e5; }
+        #chat-panel {
+            display: none; position: fixed; bottom: 90px; right: 20px;
+            width: 360px; height: 480px; background: #1a1d27; border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4); flex-direction: column;
+            overflow: hidden; z-index: 10000; border: 1px solid #2e3345;
+        }
+        #chat-panel.open { display: flex; }
+        .chat-header {
+            background: #6366f1; color: white; padding: 14px 16px;
+            font-weight: 600; font-size: 15px;
+        }
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 12px; display: flex;
+            flex-direction: column; gap: 8px;
+        }
+        .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+        .msg.user { align-self: flex-end; background: #6366f1; color: white; }
+        .msg.bot { align-self: flex-start; background: #242836; color: #e4e7ef; }
+        .chat-input {
+            display: flex; border-top: 1px solid #2e3345; padding: 8px;
+        }
+        .chat-input input {
+            flex: 1; border: 1px solid #2e3345; border-radius: 8px; padding: 10px 12px;
+            background: #0f1117; color: #e4e7ef; font-size: 14px; outline: none;
+        }
+        .chat-input button {
+            margin-left: 8px; background: #6366f1; color: white; border: none;
+            border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600;
+        }
+        .chat-input button:hover { background: #4f46e5; }
+        .typing { color: #8b92a8; font-size: 13px; padding: 4px 0; }
+    </style>
+</head>
+<body>
+<button id="chat-bubble" onclick="toggleChat()">&#128172;</button>
+<div id="chat-panel">
+    <div class="chat-header">{{ business.name }}</div>
+    <div class="chat-messages" id="messages"></div>
+    <div class="chat-input">
+        <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+<script>
+const businessId = {{ business.id }};
+let sessionId = 'widget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+function toggleChat() {
+    document.getElementById('chat-panel').classList.toggle('open');
+}
+
+function addMessage(text, type) {
+    const el = document.createElement('div');
+    el.className = 'msg ' + type;
+    el.textContent = text;
+    const container = document.getElementById('messages');
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage() {
+    const input = document.getElementById('msgInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    addMessage(msg, 'user');
+
+    const typing = document.createElement('div');
+    typing.className = 'typing';
+    typing.textContent = 'Typing...';
+    typing.id = 'typingIndicator';
+    document.getElementById('messages').appendChild(typing);
+
+    try {
+        const res = await fetch(`/api/widget/${businessId}/message`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: msg, session_id: sessionId})
+        });
+        const data = await res.json();
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) indicator.remove();
+        if (data.response) {
+            addMessage(data.response, 'bot');
+        } else if (data.message) {
+            addMessage(data.message, 'bot');
+        }
+    } catch (e) {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) indicator.remove();
+        addMessage('Sorry, something went wrong. Please try again.', 'bot');
+    }
+}
+</script>
+</body>
+</html>
