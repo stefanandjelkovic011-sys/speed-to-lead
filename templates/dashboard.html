@@ -1,26 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — {{ business.name }} — Speed-to-Lead{% endblock %}
+{% block title %}Dashboard — {{ business.name }}{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-    <h1>{{ business.name }} — Dashboard</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
     <div>
-        <a href="{{ url_for('knowledge_base', business_id=business.id) }}" class="btn btn-outline">Knowledge Base</a>
-        <a href="{{ url_for('testing_platform', business_id=business.id) }}" class="btn btn-outline">Testing</a>
+        <h1 style="margin-bottom:4px;">{{ business.name }}</h1>
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500;letter-spacing:0.05em;text-transform:uppercase;">Mission Control</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a href="{{ url_for('knowledge_base', business_id=business.id) }}" class="btn btn-outline btn-sm">Knowledge Base</a>
+        <a href="{{ url_for('testing_platform', business_id=business.id) }}" class="btn btn-outline btn-sm">Testing</a>
     </div>
 </div>
 
-<div class="stats-grid">
-    <div class="stat-card">
+<!-- Health Banner -->
+<div id="healthBanner" style="display:none;background:var(--warning-dim);border:1px solid rgba(251,191,36,0.2);color:var(--warning);padding:12px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:13px;font-weight:500;backdrop-filter:blur(10px);">
+    <span style="margin-right:6px;">&#9888;</span> Claude CLI is currently unavailable. New leads will be queued for CSR review.
+</div>
+
+<!-- Stats -->
+<div class="stats-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;">
+    <div class="stat-card" style="border-left:3px solid var(--accent);">
         <div class="value">{{ stats.total }}</div>
         <div class="label">Total Leads</div>
     </div>
     <div class="stat-card">
-        <div class="value" style="color:var(--primary);">{{ stats.NEW }}</div>
+        <div class="value" style="color:var(--accent);">{{ stats.NEW }}</div>
         <div class="label">New</div>
     </div>
     <div class="stat-card">
         <div class="value" style="color:var(--info);">{{ stats.IN_PROGRESS }}</div>
-        <div class="label">In Progress</div>
+        <div class="label">Active</div>
     </div>
     <div class="stat-card">
         <div class="value" style="color:var(--success);">{{ stats.BOOKED }}</div>
@@ -36,24 +45,20 @@
     </div>
     <div class="stat-card">
         <div class="value" style="color:var(--success);">{{ stats.booking_rate }}%</div>
-        <div class="label">Booking Rate</div>
+        <div class="label">Book Rate</div>
     </div>
     <div class="stat-card">
-        <div class="value" style="color:var(--info);">{% if avg_response_seconds is not none %}{% if avg_response_seconds >= 60 %}{{ (avg_response_seconds / 60)|round(1) }}m{% else %}{{ avg_response_seconds }}s{% endif %}{% else %}-{% endif %}</div>
-        <div class="label">Avg Response Time</div>
+        <div class="value" style="color:var(--info);font-size:28px;">{% if avg_response_seconds is not none %}{% if avg_response_seconds >= 60 %}{{ (avg_response_seconds / 60)|round(1) }}m{% else %}{{ avg_response_seconds }}s{% endif %}{% else %}&mdash;{% endif %}</div>
+        <div class="label">Avg Response</div>
     </div>
 </div>
 
-<!-- Gap 5: Health status banner -->
-<div id="healthBanner" style="display:none;background:#d97706;color:white;padding:10px 15px;border-radius:8px;margin-bottom:15px;font-size:14px;">
-    &#9888; Claude CLI is currently unavailable. New leads will be queued for CSR review.
-</div>
-
+<!-- Leads Table -->
 <div class="card">
     <div class="card-header">
-        <h2>Leads</h2>
-        <div style="display:flex;gap:10px;align-items:center;">
-            <select id="filterStatus" onchange="filterLeads()" style="width:auto;">
+        <h2 style="margin-bottom:0;">Leads</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <select id="filterStatus" onchange="filterLeads()" style="width:auto;padding:8px 12px;font-size:12px;">
                 <option value="">All Statuses</option>
                 <option value="NEW">New</option>
                 <option value="IN_PROGRESS">In Progress</option>
@@ -61,7 +66,7 @@
                 <option value="UNBOOKED">Unbooked</option>
                 <option value="NON_LEAD">Non-Lead</option>
             </select>
-            <select id="filterPlatform" onchange="filterLeads()" style="width:auto;">
+            <select id="filterPlatform" onchange="filterLeads()" style="width:auto;padding:8px 12px;font-size:12px;">
                 <option value="">All Platforms</option>
                 <option value="google_lsa">Google LSA</option>
                 <option value="yelp">Yelp</option>
@@ -72,7 +77,7 @@
                 <option value="duke_energy">Duke Energy</option>
                 <option value="test_simulation">Test</option>
             </select>
-            <input type="text" id="filterName" placeholder="Search name..." onkeyup="filterLeadsLocal()" style="width:180px;">
+            <input type="text" id="filterName" placeholder="Search..." onkeyup="filterLeadsLocal()" style="width:160px;padding:8px 12px;font-size:12px;">
         </div>
     </div>
     <table>
@@ -91,17 +96,17 @@
             <tr onclick="window.location='{{ url_for('lead_detail', lead_id=lead.id) }}'" style="cursor:pointer;" data-name="{{ lead.customer_name or '' }}">
                 <td><span class="badge badge-{{ lead.status|lower|replace('_','-') }}">{{ lead.status }}</span></td>
                 <td><span class="badge badge-platform">{{ lead.platform }}</span></td>
-                <td>{{ lead.customer_name or 'Unknown' }}</td>
-                <td>{{ lead.service_type or '-' }}</td>
-                <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ lead.last_message or '-' }}</td>
-                <td>{{ lead.updated_at[:16] if lead.updated_at else '-' }}</td>
+                <td style="font-weight:500;">{{ lead.customer_name or 'Unknown' }}</td>
+                <td style="color:var(--text-dim);">{{ lead.service_type or '-' }}</td>
+                <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);font-size:12px;">{{ lead.last_message or '-' }}</td>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);">{{ lead.updated_at[:16] if lead.updated_at else '-' }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% if not leads %}
-    <div class="empty-state" style="padding:30px;">
-        <p>No leads yet. Use the Testing platform to simulate leads, or connect a platform.</p>
+    <div class="empty-state" style="padding:40px;">
+        <p style="font-size:14px;">No leads yet. Use the Testing platform to simulate leads, or connect a platform.</p>
     </div>
     {% endif %}
 </div>
@@ -135,25 +140,23 @@ function filterLeadsLocal() {
 function renderLeads(leads) {
     const tbody = document.getElementById('leadsTable');
     if (!leads.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No leads match filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:28px;font-size:13px;">No leads match filters</td></tr>';
         return;
     }
     tbody.innerHTML = leads.map(l => `
         <tr onclick="window.location='/lead/${l.id}'" style="cursor:pointer;" data-name="${l.customer_name || ''}">
             <td><span class="badge badge-${(l.status||'').toLowerCase().replace('_','-')}">${l.status}</span></td>
             <td><span class="badge badge-platform">${l.platform}</span></td>
-            <td>${l.customer_name || 'Unknown'}</td>
-            <td>${l.service_type || '-'}</td>
-            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.last_message || '-'}</td>
-            <td>${(l.updated_at || '').substring(0, 16)}</td>
+            <td style="font-weight:500;">${l.customer_name || 'Unknown'}</td>
+            <td style="color:var(--text-dim);">${l.service_type || '-'}</td>
+            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);font-size:12px;">${l.last_message || '-'}</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);">${(l.updated_at || '').substring(0, 16)}</td>
         </tr>
     `).join('');
 }
 
-// Auto-refresh every 30s
 setInterval(filterLeads, 30000);
 
-// Gap 5: Health status check on load
 fetch('/api/test/health').then(r => r.json()).then(data => {
     if (!data.claude_cli_available) {
         document.getElementById('healthBanner').style.display = 'block';

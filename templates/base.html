@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Speed-to-Lead{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
 <body>
 <div class="app-shell">
     <aside class="sidebar">
-        <div class="logo">Speed-to-Lead</div>
+        <div class="logo">Kennewick Cleaning</div>
         <nav>
             <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a>
             {% if business is defined and business %}
@@ -38,25 +40,285 @@
     </main>
 </div>
 <div class="loading-overlay" id="loadingOverlay">
-    <div style="text-align:center;color:white;">
-        <div class="loading" style="width:40px;height:40px;margin:0 auto 15px;"></div>
-        <div id="loadingText">Processing with Claude CLI...</div>
+    <div style="text-align:center;color:var(--accent);">
+        <div class="loading" style="width:44px;height:44px;margin:0 auto 18px;border-width:3px;"></div>
+        <div id="loadingText" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:500;letter-spacing:0.02em;">Processing...</div>
     </div>
 </div>
+<div class="save-confirm" id="saveConfirm">Saved</div>
 <script>
 function showLoading(text) {
-    document.getElementById('loadingText').textContent = text || 'Processing with Claude CLI...';
+    document.getElementById('loadingText').textContent = text || 'Processing...';
     document.getElementById('loadingOverlay').classList.add('active');
 }
 function hideLoading() {
     document.getElementById('loadingOverlay').classList.remove('active');
 }
 async function apiCall(url, method, body) {
-    const opts = { method, headers: {'Content-Type': 'application/json'} };
+    var opts = { method: method, headers: {'Content-Type': 'application/json'} };
     if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(url, opts);
+    var res = await fetch(url, opts);
     return res.json();
 }
+function showSaved() {
+    var el = document.getElementById('saveConfirm');
+    el.classList.add('visible');
+    setTimeout(function() { el.classList.remove('visible'); }, 1800);
+}
+function animateValue(el, start, end, duration) {
+    var range = end - start;
+    var startTime = performance.now();
+    var isFloat = String(end).includes('.');
+    function update(now) {
+        var elapsed = now - startTime;
+        var progress = Math.min(elapsed / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        var current = start + range * eased;
+        el.textContent = isFloat ? current.toFixed(1) : Math.round(current);
+        if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.stat-card .value').forEach(function(el) {
+        var text = el.textContent.trim();
+        var num = parseFloat(text.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(num) && num > 0) {
+            var prefix = text.match(/^[^0-9\-]*/)[0];
+            var suffix = text.match(/[^0-9.]*$/)[0];
+            el.textContent = prefix + '0' + suffix;
+            setTimeout(function() {
+                var isFloat = text.includes('.');
+                var startTime = performance.now();
+                function update(now) {
+                    var elapsed = now - startTime;
+                    var progress = Math.min(elapsed / 800, 1);
+                    var eased = 1 - Math.pow(1 - progress, 3);
+                    var current = num * eased;
+                    el.textContent = prefix + (isFloat ? current.toFixed(1) : Math.round(current)) + suffix;
+                    if (progress < 1) requestAnimationFrame(update);
+                }
+                requestAnimationFrame(update);
+            }, 200);
+        }
+    });
+});
+</script>
+<script>
+/* ─── Custom Dropdown Engine ─── */
+var CDD = {
+    chevronSVG: '<svg class="cdd-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>',
+
+    upgrade: function(sel) {
+        if (sel.dataset.cddDone) return;
+        sel.dataset.cddDone = '1';
+        sel.classList.add('cdd-hidden');
+
+        var wrap = document.createElement('div');
+        wrap.className = 'cdd-wrap';
+
+        var st = sel.style;
+        if (st.width === 'auto' || st.fontSize === '12px' || st.fontSize === '11px') {
+            wrap.classList.add('cdd-auto');
+        }
+        if (st.fontSize === '10px' || sel.closest('.cal-job-reassign')) {
+            wrap.classList.add('cdd-tiny');
+        }
+
+        var trigger = document.createElement('div');
+        trigger.className = 'cdd-trigger';
+        trigger.tabIndex = 0;
+        trigger.setAttribute('role', 'combobox');
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        var triggerText = document.createElement('span');
+        triggerText.className = 'cdd-trigger-text';
+        trigger.appendChild(triggerText);
+        trigger.insertAdjacentHTML('beforeend', CDD.chevronSVG);
+
+        var panel = document.createElement('div');
+        panel.className = 'cdd-panel';
+        panel.setAttribute('role', 'listbox');
+
+        wrap.appendChild(trigger);
+        wrap.appendChild(panel);
+        sel.parentNode.insertBefore(wrap, sel);
+        wrap.appendChild(sel);
+
+        var focusIndex = -1;
+
+        function buildOptions() {
+            panel.innerHTML = '';
+            var opts = sel.options;
+            for (var i = 0; i < opts.length; i++) {
+                if (opts[i].parentElement.tagName === 'OPTGROUP') {
+                    var grp = opts[i].parentElement;
+                    if (i === 0 || opts[i - 1].parentElement !== grp) {
+                        var groupEl = document.createElement('div');
+                        groupEl.className = 'cdd-option-group';
+                        groupEl.textContent = grp.label;
+                        panel.appendChild(groupEl);
+                    }
+                }
+                var div = document.createElement('div');
+                div.className = 'cdd-option';
+                div.dataset.value = opts[i].value;
+                div.dataset.index = String(i);
+                div.textContent = opts[i].textContent;
+                div.setAttribute('role', 'option');
+                if (i === sel.selectedIndex) div.classList.add('selected');
+                div.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectOption(parseInt(this.dataset.index));
+                    close();
+                });
+                panel.appendChild(div);
+            }
+            updateTrigger();
+        }
+
+        function updateTrigger() {
+            var opt = sel.options[sel.selectedIndex];
+            if (opt) {
+                triggerText.textContent = opt.textContent;
+                triggerText.classList.toggle('placeholder', opt.value === '' && opt.textContent.indexOf('\u2014') >= 0);
+            } else {
+                triggerText.textContent = '';
+            }
+            panel.querySelectorAll('.cdd-option').forEach(function(el, i) {
+                el.classList.toggle('selected', i === sel.selectedIndex);
+            });
+        }
+
+        function selectOption(idx) {
+            sel.selectedIndex = idx;
+            updateTrigger();
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function open() {
+            if (wrap.classList.contains('open')) return;
+            document.querySelectorAll('.cdd-wrap.open').forEach(function(w) {
+                w.classList.remove('open');
+                w.querySelector('.cdd-trigger').setAttribute('aria-expanded', 'false');
+            });
+            wrap.classList.add('open');
+            trigger.setAttribute('aria-expanded', 'true');
+            focusIndex = sel.selectedIndex;
+            updateFocus();
+            var selEl = panel.querySelector('.cdd-option.selected');
+            if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+        }
+
+        function close() {
+            wrap.classList.remove('open');
+            trigger.setAttribute('aria-expanded', 'false');
+            focusIndex = -1;
+            panel.querySelectorAll('.cdd-option.focused').forEach(function(el) { el.classList.remove('focused'); });
+        }
+
+        function updateFocus() {
+            var items = panel.querySelectorAll('.cdd-option');
+            items.forEach(function(el, i) { el.classList.toggle('focused', i === focusIndex); });
+            if (focusIndex >= 0 && items[focusIndex]) {
+                items[focusIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        trigger.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (wrap.classList.contains('open')) { close(); } else { open(); }
+            trigger.focus();
+        });
+
+        trigger.addEventListener('keydown', function(e) {
+            var items = panel.querySelectorAll('.cdd-option');
+            var total = items.length;
+            if (!total) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!wrap.classList.contains('open')) { open(); return; }
+                focusIndex = (focusIndex + 1) % total;
+                updateFocus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!wrap.classList.contains('open')) { open(); return; }
+                focusIndex = (focusIndex - 1 + total) % total;
+                updateFocus();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (wrap.classList.contains('open') && focusIndex >= 0) {
+                    selectOption(focusIndex);
+                    close();
+                } else {
+                    open();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            } else if (e.key === 'Tab') {
+                close();
+            }
+        });
+
+        document.addEventListener('mousedown', function(e) {
+            if (!wrap.contains(e.target)) close();
+        });
+
+        var lastVal = sel.value;
+        var lastLen = sel.options.length;
+        var syncInterval = setInterval(function() {
+            if (sel.value !== lastVal) {
+                lastVal = sel.value;
+                updateTrigger();
+            }
+            if (sel.options.length !== lastLen) {
+                lastLen = sel.options.length;
+                buildOptions();
+            }
+        }, 200);
+
+        var removalObserver = new MutationObserver(function() {
+            if (!document.body.contains(wrap)) {
+                clearInterval(syncInterval);
+                removalObserver.disconnect();
+            }
+        });
+        removalObserver.observe(document.body, { childList: true, subtree: true });
+
+        buildOptions();
+    },
+
+    upgradeAll: function(root) {
+        (root || document).querySelectorAll('select:not([data-cdd-done]):not([multiple])').forEach(function(sel) {
+            CDD.upgrade(sel);
+        });
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    CDD.upgradeAll();
+
+    var cddObs = new MutationObserver(function(mutations) {
+        var found = false;
+        for (var k = 0; k < mutations.length; k++) {
+            var added = mutations[k].addedNodes;
+            for (var n = 0; n < added.length; n++) {
+                if (added[n].nodeType === 1) {
+                    if (added[n].tagName === 'SELECT' && !added[n].dataset.cddDone && !added[n].multiple) { found = true; break; }
+                    if (added[n].querySelector && added[n].querySelector('select:not([data-cdd-done]):not([multiple])')) { found = true; break; }
+                }
+            }
+            if (found) break;
+        }
+        if (found) setTimeout(function() { CDD.upgradeAll(); }, 10);
+    });
+    cddObs.observe(document.body, { childList: true, subtree: true });
+});
 </script>
 {% block scripts %}{% endblock %}
 </body>

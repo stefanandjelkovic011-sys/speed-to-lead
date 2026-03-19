@@ -6,3 +6,6 @@ data/*.db
 *.egg-info/
 .DS_Store
 knowledge_bases/
+x_bot/.env
+x_bot/data/
+x_bot/venv/

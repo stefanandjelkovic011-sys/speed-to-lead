@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Analytics Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --surface: #111820;
+            --surface-hover: #1a2230;
+            --border: #1e2a3a;
+            --text: #e0e6ed;
+            --text-muted: #6b7a8d;
+            --text-dim: #4a5568;
+            --accent: #00e6ff;
+            --info: #3b82f6;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 32px;
+            min-height: 100vh;
+        }
+        h1 { font-size: 24px; font-weight: 700; }
+        h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+        .stats-grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-card .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .stat-card .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 10px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+        tr:last-child td { border-bottom: none; }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(0, 230, 255, 0.1);
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+        }
+        .btn-primary { background: var(--accent); color: var(--bg); }
+        .btn-primary:hover { opacity: 0.85; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        select {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-family: 'IBM Plex Sans', sans-serif;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+        }
+        .x-post {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        .x-post:hover { background: var(--surface-hover); }
+        .x-post:last-child { border-bottom: none; }
+        .x-post p { word-wrap: break-word; }
+    </style>
+</head>
+<body>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+    <div>
+        <h1 style="margin-bottom:4px;">X Analytics</h1>
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500;letter-spacing:0.05em;text-transform:uppercase;">Post Performance &amp; Engagement</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="refreshData()">Refresh</button>
+        <a href="https://x.com/{{ x_username }}" target="_blank" class="btn btn-primary btn-sm">Open X Profile</a>
+    </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="stats-grid" style="grid-template-columns: repeat(8, 1fr);">
+    <div class="stat-card" style="border-left:3px solid var(--accent);">
+        <div class="value">{{ stats.total_posts or 0 }}</div>
+        <div class="label">Total Posts</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--info);">{{ "{:,}".format(stats.total_views|int) if stats.total_views else 0 }}</div>
+        <div class="label">Total Views</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--danger);">{{ "{:,}".format(stats.total_likes|int) if stats.total_likes else 0 }}</div>
+        <div class="label">Total Likes</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">{{ "{:,}".format(stats.total_retweets|int) if stats.total_retweets else 0 }}</div>
+        <div class="label">Retweets</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--warning);">{{ "{:,}".format(stats.total_replies|int) if stats.total_replies else 0 }}</div>
+        <div class="label">Replies</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--info);">{{ "{:,}".format(stats.total_bookmarks|int) if stats.total_bookmarks else 0 }}</div>
+        <div class="label">Bookmarks</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--accent);">{{ stats.avg_views|int if stats.avg_views else 0 }}</div>
+        <div class="label">Avg Views</div>
+    </div>
+    <div class="stat-card">
+        <div class="value" style="color:var(--success);">{{ "%.1f"|format(stats.avg_engagement|float) if stats.avg_engagement else 0 }}</div>
+        <div class="label">Avg Score</div>
+    </div>
+</div>
+
+<!-- Follower Tracker -->
+{% if follower_history %}
+<div class="card">
+    <div class="card-header">
+        <h2 style="margin-bottom:0;">Follower Growth</h2>
+    </div>
+    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:0;">
+        <div class="stat-card">
+            <div class="value" style="color:var(--accent);">{{ "{:,}".format(follower_history[0].followers) if follower_history else 0 }}</div>
+            <div class="label">Followers</div>
+        </div>
+        <div class="stat-card">
+            <div class="value" style="color:var(--text-dim);">{{ "{:,}".format(follower_history[0].following) if follower_history else 0 }}</div>
+            <div class="label">Following</div>
+        </div>
+        <div class="stat-card">
+            <div class="value" style="color:var(--info);">{{ "{:,}".format(follower_history[0].total_tweets) if follower_history else 0 }}</div>
+            <div class="label">Total Tweets</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <!-- Category Performance -->
+    <div class="card">
+        <h2>Category Performance</h2>
+        {% if category_perf %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Posts</th>
+                    <th>Avg Views</th>
+                    <th>Avg Likes</th>
+                    <th>Avg Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in category_perf %}
+                <tr>
+                    <td><span class="badge">{{ cat.category|replace('_', ' ')|title }}</span></td>
+                    <td style="font-family:'JetBrains Mono',monospace;">{{ cat.post_count }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--info);">{{ cat.avg_views|int }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--danger);">{{ "%.1f"|format(cat.avg_likes|float) }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--accent);">{{ "%.1f"|format(cat.avg_engagement|float) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><p style="font-size:14px;">No category data yet.</p></div>
+        {% endif %}
+    </div>
+
+    <!-- Daily Activity -->
+    <div class="card">
+        <h2>Daily Activity</h2>
+        {% if daily_data %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Posts</th>
+                    <th>Views</th>
+                    <th>Likes</th>
+                    <th>Retweets</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in daily_data %}
+                <tr>
+                    <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">{{ day.date }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;">{{ day.posts }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--info);">{{ "{:,}".format(day.views|int) }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--danger);">{{ "{:,}".format(day.likes|int) }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--success);">{{ "{:,}".format(day.retweets|int) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><p style="font-size:14px;">No daily data yet.</p></div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Top Performing Posts -->
+{% if top_posts %}
+<div class="card">
+    <h2>Top Performing Posts</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Score</th>
+                <th>Category</th>
+                <th>Content</th>
+                <th>Views</th>
+                <th>Likes</th>
+                <th>RTs</th>
+                <th>Posted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in top_posts %}
+            <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);">{{ post.engagement_score or 0 }}</td>
+                <td><span class="badge" style="font-size:9px;">{{ post.category|replace('_', ' ')|title }}</span></td>
+                <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="{{ post.content }}">{{ post.content[:80] }}{% if post.content|length > 80 %}...{% endif %}</td>
+                <td style="font-family:'JetBrains Mono',monospace;color:var(--info);">{{ "{:,}".format(post.views|int) if post.views else 0 }}</td>
+                <td style="font-family:'JetBrains Mono',monospace;color:var(--danger);">{{ post.likes or 0 }}</td>
+                <td style="font-family:'JetBrains Mono',monospace;color:var(--success);">{{ post.retweets or 0 }}</td>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);">{{ post.posted_at[:16] if post.posted_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- All Posts Feed -->
+<div class="card">
+    <div class="card-header">
+        <h2 style="margin-bottom:0;">Post Feed</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <select id="filterCategory" onchange="filterPosts()">
+                <option value="">All Categories</option>
+                <option value="market_commentary">Market Commentary</option>
+                <option value="historical_lesson">Historical Lesson</option>
+                <option value="investment_idea">Investment Idea</option>
+                <option value="macro">Macro Insight</option>
+                <option value="contrarian_take">Contrarian Take</option>
+                <option value="stock_spotlight">Stock Spotlight</option>
+            </select>
+            <select id="sortBy" onchange="filterPosts()">
+                <option value="recent">Most Recent</option>
+                <option value="views">Most Views</option>
+                <option value="likes">Most Likes</option>
+                <option value="engagement">Highest Score</option>
+            </select>
+        </div>
+    </div>
+    <div id="postsFeed">
+        {% if posts %}
+        {% for post in posts %}
+        <div class="x-post" data-category="{{ post.category }}" data-views="{{ post.views or 0 }}" data-likes="{{ post.likes or 0 }}" data-engagement="{{ post.engagement_score or 0 }}" data-date="{{ post.posted_at or '' }}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span class="badge" style="font-size:9px;">{{ post.category|replace('_', ' ')|title }}</span>
+                    {% if post.ticker_mentioned %}<span style="font-size:11px;color:var(--accent);font-weight:600;">${{ post.ticker_mentioned }}</span>{% endif %}
+                    {% if post.is_thread %}<span style="font-size:10px;color:var(--warning);">THREAD</span>{% endif %}
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);">{{ post.posted_at[:16] if post.posted_at else '' }}</span>
+            </div>
+            <p style="font-size:14px;line-height:1.5;margin-bottom:10px;color:var(--text);">{{ post.content }}</p>
+            <div style="display:flex;gap:20px;font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">
+                <span title="Views" style="color:var(--info);">{{ "{:,}".format(post.views|int) if post.views else 0 }} views</span>
+                <span title="Likes" style="color:var(--danger);">{{ post.likes or 0 }} likes</span>
+                <span title="Retweets" style="color:var(--success);">{{ post.retweets or 0 }} RTs</span>
+                <span title="Replies">{{ post.replies or 0 }} replies</span>
+                <span title="Bookmarks">{{ post.bookmarks or 0 }} saves</span>
+                {% if post.engagement_score %}<span title="Engagement Score" style="color:var(--accent);font-weight:600;">Score: {{ post.engagement_score }}</span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state" style="padding:40px;">
+            <p style="font-size:14px;">No posts yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function filterPosts() {
+    var category = document.getElementById('filterCategory').value;
+    var sortBy = document.getElementById('sortBy').value;
+    var posts = Array.from(document.querySelectorAll('.x-post'));
+    posts.forEach(function(post) {
+        post.style.display = (category && post.dataset.category !== category) ? 'none' : '';
+    });
+    var container = document.getElementById('postsFeed');
+    var visible = posts.filter(function(p) { return p.style.display !== 'none'; });
+    visible.sort(function(a, b) {
+        if (sortBy === 'views') return parseInt(b.dataset.views) - parseInt(a.dataset.views);
+        if (sortBy === 'likes') return parseInt(b.dataset.likes) - parseInt(a.dataset.likes);
+        if (sortBy === 'engagement') return parseInt(b.dataset.engagement) - parseInt(a.dataset.engagement);
+        return b.dataset.date.localeCompare(a.dataset.date);
+    });
+    visible.forEach(function(el) { container.appendChild(el); });
+}
+function refreshData() { location.reload(); }
+setInterval(function() {
+    fetch('/api/stats').then(function(r) { return r.json(); }).then(function(data) {
+        var stats = data.stats;
+        var cards = document.querySelectorAll('.stat-card .value');
+        if (cards.length >= 8 && stats) {
+            var vals = [stats.total_posts||0, stats.total_views||0, stats.total_likes||0, stats.total_retweets||0, stats.total_replies||0, stats.total_bookmarks||0, Math.round(stats.avg_views||0), (stats.avg_engagement||0).toFixed(1)];
+            for (var i = 0; i < Math.min(vals.length, cards.length); i++) {
+                cards[i].textContent = typeof vals[i]==='number' && vals[i]>=1000 ? vals[i].toLocaleString() : String(vals[i]);
+            }
+        }
+    }).catch(function() {});
+}, 300000);
+</script>
+</body>
+</html>

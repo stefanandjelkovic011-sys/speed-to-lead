@@ -17,11 +17,21 @@
         <div class="form-row">
             <div class="form-group">
                 <label>Bedrooms</label>
-                <input type="number" id="bedrooms" value="3" min="0" max="10">
+                <div class="stepper">
+                    <button type="button" class="stepper-btn" onclick="step('bedrooms',-1)">-</button>
+                    <span class="stepper-value" id="bedrooms-display">3</span>
+                    <button type="button" class="stepper-btn" onclick="step('bedrooms',1)">+</button>
+                    <input type="hidden" id="bedrooms" value="3">
+                </div>
             </div>
             <div class="form-group">
                 <label>Bathrooms</label>
-                <input type="number" id="bathrooms" value="2" min="0" max="10" step="0.5">
+                <div class="stepper">
+                    <button type="button" class="stepper-btn" onclick="step('bathrooms',-0.5)">-</button>
+                    <span class="stepper-value" id="bathrooms-display">2</span>
+                    <button type="button" class="stepper-btn" onclick="step('bathrooms',0.5)">+</button>
+                    <input type="hidden" id="bathrooms" value="2">
+                </div>
             </div>
         </div>
         <div class="form-row">
@@ -75,7 +85,66 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.stepper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: rgba(10, 10, 15, 0.6);
+}
+.stepper-btn {
+    width: 48px;
+    height: 46px;
+    border: none;
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    font-family: 'JetBrains Mono', monospace;
+}
+.stepper-btn:hover {
+    background: rgba(0, 230, 255, 0.12);
+    color: var(--accent);
+}
+.stepper-btn:active {
+    background: rgba(0, 230, 255, 0.2);
+}
+.stepper-value {
+    flex: 1;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    padding: 8px 4px;
+    min-width: 50px;
+    user-select: none;
+}
+</style>
 <script>
+function step(id, delta) {
+    var input = document.getElementById(id);
+    var display = document.getElementById(id + '-display');
+    var val = parseFloat(input.value) + delta;
+    if (val < 0) val = 0;
+    if (val > 10) val = 10;
+    var stepSize = Math.abs(delta);
+    input.value = stepSize < 1 ? val.toFixed(1) : val;
+    display.textContent = stepSize < 1 ? val.toFixed(1) : val;
+    display.style.transform = 'scale(1.15)';
+    setTimeout(function() { display.style.transform = 'scale(1)'; }, 120);
+    display.style.transition = 'transform 0.12s ease-out';
+}
+
 async function calculatePrice() {
     const data = {
         service_type: document.getElementById('serviceType').value,
